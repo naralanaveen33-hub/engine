@@ -12,8 +12,8 @@ Demo token for seeded device: esp32-demo-token  hardware_id: esp32-demo-01
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 
-const char* WIFI_SSID = "YOUR_SSID";
-const char* WIFI_PASS = "YOUR_PASS";
+const char* WIFI_SSID = "realme 12 Pro+ 5G A4D2";
+const char* WIFI_PASS = "0987654321";
 const char* API_HOST = "http://192.168.1.10:8000";
 const char* HARDWARE_ID = "esp32-demo-01";
 const char* DEVICE_TOKEN = "esp32-demo-token";

@@ -1,113 +1,138 @@
 import React from "react";
-import { Droplets, AlertTriangle, CheckCircle, Clock, Info, ArrowRight, ShieldCheck } from "lucide-react";
+import { Droplets, ShieldCheck, HelpCircle, CheckCircle, AlertTriangle } from "lucide-react";
 import { SourceBadge } from "./SourceBadge";
 
 interface IrrigationCardProps {
   decision: any;
-  onOpenWhy: () => void;
-  onOpenConfirm: () => void;
-  isSimulated?: boolean;
+  onWhyClick: () => void;
+  onConfirmClick: () => void;
 }
 
-export function IrrigationCard({ decision, onOpenWhy, onOpenConfirm, isSimulated }: IrrigationCardProps) {
+export function IrrigationCard({ decision, onWhyClick, onConfirmClick }: IrrigationCardProps) {
   if (!decision) {
     return (
-      <div className="hero-decision-card">
-        <div style={{ textAlign: "center", padding: "40px 20px" }}>
-          <Droplets size={48} style={{ color: "var(--primary-light)", marginBottom: "12px" }} />
-          <h3>Irrigation Engine Ready</h3>
-          <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>Select a field to evaluate current water requirement based on real sensors and weather forecasts.</p>
-        </div>
+      <div style={{ background: "white", padding: "24px", borderRadius: "16px", border: "1px solid #E2E8F0" }}>
+        <div style={{ color: "#64748B", textAlign: "center" }}>Evaluating field irrigation requirements...</div>
       </div>
     );
   }
 
-  const action = decision.action || "DELAY";
-
-  const getActionIcon = () => {
-    switch (action) {
-      case "IRRIGATE":
-        return <Droplets size={24} />;
-      case "DELAY":
-        return <Clock size={24} />;
-      case "DO_NOT_IRRIGATE":
-        return <CheckCircle size={24} />;
-      default:
-        return <Info size={24} />;
-    }
-  };
+  const rec = decision.recommendation || {};
+  const needed = rec.action === "IRRIGATE";
+  const status = decision.execution_status || "DECISION_READY";
 
   return (
-    <div className="hero-decision-card">
-      {isSimulated && (
-        <div style={{ position: "absolute", top: "12px", right: "16px" }}>
-          <SourceBadge source="SIMULATION" />
+    <div style={{ background: "white", padding: "24px", borderRadius: "16px", border: "1px solid #E2E8F0", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: needed ? "#ECFDF5" : "#EFF6FF", color: needed ? "#059669" : "#2563EB", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Droplets size={20} />
+          </div>
+          <div>
+            <h3 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0F172A", margin: 0 }}>FAO-56 Irrigation Recommendation</h3>
+            <span style={{ fontSize: "0.75rem", color: "#64748B" }}>Deterministically Calculated Engine Recommendation</span>
+          </div>
         </div>
-      )}
+        <SourceBadge source="MODEL_OUTPUT" />
+      </div>
 
-      <div className="hero-decision-header">
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "16px", padding: "16px", background: "#F8FAFC", borderRadius: "12px", marginBottom: "16px" }}>
         <div>
-          <span style={{ fontSize: "0.75rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--text-muted)" }}>
-            Deterministic Operational Decision
-          </span>
-          <h2 style={{ fontSize: "1.3rem", fontWeight: 800, marginTop: "2px" }}>Irrigation Recommendation</h2>
+          <div style={{ fontSize: "0.72rem", color: "#64748B", fontWeight: 700 }}>RECOMMENDED ACTION</div>
+          <div style={{ fontSize: "1.2rem", fontWeight: 800, color: needed ? "#059669" : "#2563EB", marginTop: "2px" }}>
+            {rec.action || "SKIP"}
+          </div>
         </div>
 
-        <div className={`decision-action-badge ${action}`}>
-          {getActionIcon()}
-          <span>{action.replace("_", " ")}</span>
-        </div>
-      </div>
-
-      <p className="decision-summary-text">
-        {action === "IRRIGATE" && "Soil moisture is below threshold and significant rainfall is not expected."}
-        {action === "DELAY" && "Delay recommended due to high rain forecast or adequate current moisture."}
-        {action === "DO_NOT_IRRIGATE" && "Soil moisture is optimal for current crop growth stage."}
-      </p>
-
-      <div className="decision-metrics-bar">
-        <div className="decision-metric-item">
-          <span className="metric-item-label">Estimated Water</span>
-          <span className="metric-item-val">{decision.estimated_water_litres?.value ?? decision.litres_estimated ?? 0} L</span>
-          <SourceBadge source="ESTIMATED" />
+        <div>
+          <div style={{ fontSize: "0.72rem", color: "#64748B", fontWeight: 700 }}>NET WATER VOLUME</div>
+          <div style={{ fontSize: "1.2rem", fontWeight: 800, color: "#0F172A", marginTop: "2px" }}>
+            {rec.net_water_liters ? `${rec.net_water_liters.toLocaleString()} L` : "0 L"}
+          </div>
         </div>
 
-        <div className="decision-metric-item">
-          <span className="metric-item-label">Soil Moisture</span>
-          <span className="metric-item-val">{decision.inputs?.moisture_pct ?? "—"}%</span>
-          <SourceBadge source={decision.sources?.moisture || "REAL_SENSOR"} />
+        <div>
+          <div style={{ fontSize: "0.72rem", color: "#64748B", fontWeight: 700 }}>GROSS WATER VOLUME</div>
+          <div style={{ fontSize: "1.2rem", fontWeight: 800, color: "#0F172A", marginTop: "2px" }}>
+            {rec.gross_water_liters ? `${rec.gross_water_liters.toLocaleString()} L` : "0 L"}
+          </div>
         </div>
 
-        <div className="decision-metric-item">
-          <span className="metric-item-label">Rain Forecast (24h)</span>
-          <span className="metric-item-val">{decision.inputs?.rain_prob_24h ?? 0}%</span>
-          <SourceBadge source="WEATHER_API" />
-        </div>
-
-        <div className="decision-metric-item">
-          <span className="metric-item-label">Engine Confidence</span>
-          <span className="metric-item-val">{Math.round((decision.confidence || 0.9) * 100)}%</span>
-          <span style={{ fontSize: "0.68rem", color: "var(--text-muted)", fontWeight: 700 }}>{decision.rule_version}</span>
+        <div>
+          <div style={{ fontSize: "0.72rem", color: "#64748B", fontWeight: 700 }}>EXECUTABLE DURATION</div>
+          <div style={{ fontSize: "1.2rem", fontWeight: 800, color: rec.duration_capped ? "#D97706" : "#0F172A", marginTop: "2px" }}>
+            {rec.safe_duration_seconds ? `${Math.round(rec.safe_duration_seconds / 60)} mins` : "0 mins"}
+          </div>
+          {rec.duration_capped && (
+            <span style={{ fontSize: "0.68rem", color: "#D97706", fontWeight: 700, display: "block" }}>
+              ⚠ Capped by Max 120m Safety Limit
+            </span>
+          )}
         </div>
       </div>
 
-      <div className="decision-actions-row">
-        {action === "IRRIGATE" && !isSimulated && (
-          <button className="btn-primary" onClick={onOpenConfirm} disabled={decision.explanation?.execute_blocked}>
-            <ShieldCheck size={18} />
-            <span>Review & Confirm Irrigation</span>
-          </button>
-        )}
+      <div style={{ fontSize: "0.85rem", color: "#334155", background: "#F1F5F9", padding: "12px 16px", borderRadius: "8px", marginBottom: "16px" }}>
+        <strong>Reasoning:</strong> {rec.reason || "Soil water depletion is within safe bounds for current crop stage."}
+      </div>
 
-        <button className="btn-secondary" onClick={onOpenWhy}>
-          <Info size={16} />
+      {/* HARDWARE TRUTHFULNESS STATUS BANNER */}
+      <div style={{ padding: "12px 16px", borderRadius: "10px", background: "#FFFBEB", border: "1px solid #FCD34D", marginBottom: "20px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#B45309", fontWeight: 800, fontSize: "0.82rem" }}>
+          <AlertTriangle size={16} />
+          <span>HARDWARE STATUS: SOFTWARE COMMAND READY · PHYSICAL ACTUATOR UNVERIFIED</span>
+        </div>
+        <div style={{ fontSize: "0.75rem", color: "#78350F", marginTop: "4px", lineHeight: "1.4" }}>
+          Backend safety validation passed. Commands sent over Wi-Fi API represent software control. 
+          Physical relay and pump switches are pending physical hardware verification.
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: "12px" }}>
+        <button
+          onClick={onWhyClick}
+          style={{
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "8px",
+            padding: "10px 16px",
+            borderRadius: "8px",
+            border: "1px solid #CBD5E1",
+            background: "white",
+            fontWeight: 700,
+            fontSize: "0.85rem",
+            color: "#475569",
+            cursor: "pointer",
+          }}
+        >
+          <HelpCircle size={16} />
           <span>Why This Decision?</span>
         </button>
 
-        {decision.public_code && (
-          <span style={{ marginLeft: "auto", fontSize: "0.78rem", color: "var(--text-muted)", fontWeight: 700 }}>
-            Trace ID: {decision.public_code}
-          </span>
+        {needed && (
+          <button
+            onClick={onConfirmClick}
+            style={{
+              flex: 2,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "8px",
+              padding: "10px 16px",
+              borderRadius: "8px",
+              border: "none",
+              background: "linear-gradient(135deg, #10B981, #059669)",
+              fontWeight: 800,
+              fontSize: "0.88rem",
+              color: "white",
+              cursor: "pointer",
+              boxShadow: "0 2px 4px rgba(16,185,129,0.3)",
+            }}
+          >
+            <ShieldCheck size={18} />
+            <span>Authorize Irrigation Execution</span>
+          </button>
         )}
       </div>
     </div>

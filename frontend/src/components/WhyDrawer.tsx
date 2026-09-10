@@ -1,6 +1,5 @@
 import React from "react";
-import { X, CheckCircle2, AlertCircle, Cpu, Database, Compass } from "lucide-react";
-import { SourceBadge } from "./SourceBadge";
+import { X, HelpCircle, CheckCircle } from "lucide-react";
 
 interface WhyDrawerProps {
   isOpen: boolean;
@@ -9,80 +8,54 @@ interface WhyDrawerProps {
 }
 
 export function WhyDrawer({ isOpen, onClose, decision }: WhyDrawerProps) {
-  if (!isOpen || !decision) return null;
+  if (!isOpen) return null;
 
-  const explanation = decision.explanation || {};
-  const whyList: string[] = explanation.why || [];
-  const dataUsed: string[] = explanation.data_used || [];
-  const couldChange: string[] = explanation.could_change || [];
+  const rec = decision?.recommendation || {};
+  const inputs = decision?.inputs_summary || {};
 
   return (
-    <div className="drawer-backdrop" onClick={onClose}>
-      <div className="drawer-content" onClick={(e) => e.stopPropagation()}>
-        <div className="drawer-header">
-          <div>
-            <span style={{ fontSize: "0.72rem", fontWeight: 800, color: "var(--primary)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-              Explainable Decision Intelligence
-            </span>
-            <h2 style={{ fontSize: "1.3rem", fontWeight: 800 }}>Why AquaCrop Recommends This</h2>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)", zIndex: 1000, display: "flex", justifyContent: "flex-end" }}>
+      <div style={{ background: "white", width: "100%", maxWidth: "500px", height: "100%", padding: "28px", overflowY: "auto", boxShadow: "-10px 0 25px rgba(0,0,0,0.1)", display: "flex", flexDirection: "column" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", paddingBottom: "16px", borderBottom: "1px solid #E2E8F0" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <HelpCircle size={22} color="#059669" />
+            <h3 style={{ fontSize: "1.2rem", fontWeight: 800, margin: 0, color: "#0F172A" }}>Irrigation Explainability ("Why")</h3>
           </div>
-          <button className="drawer-close-btn" onClick={onClose}>
-            <X size={18} />
+          <button onClick={onClose} style={{ border: "none", background: "none", cursor: "pointer", color: "#64748B" }}>
+            <X size={22} />
           </button>
         </div>
 
-        <div style={{ marginBottom: "24px" }}>
-          <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-muted)", marginBottom: "12px", display: "flex", alignItems: "center", gap: "6px" }}>
-            <CheckCircle2 size={16} style={{ color: "var(--accent-emerald)" }} />
-            <span>PRIMARY REASON CODES</span>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            {whyList.map((reason, idx) => (
-              <div key={idx} style={{ padding: "12px 16px", background: "var(--bg-app)", borderRadius: "var(--radius-md)", borderLeft: "4px solid var(--accent-emerald)", fontSize: "0.9rem", fontWeight: 600 }}>
-                {reason}
-              </div>
-            ))}
-          </div>
+        <div style={{ fontSize: "0.88rem", color: "#334155", lineHeight: "1.6", marginBottom: "20px" }}>
+          AquaCrop uses the standard <strong>FAO-56 Penman-Monteith methodology</strong> combined with real-time weather forecasts from Open-Meteo and field geometry.
         </div>
 
-        <div style={{ marginBottom: "24px" }}>
-          <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-muted)", marginBottom: "12px", display: "flex", alignItems: "center", gap: "6px" }}>
-            <Database size={16} style={{ color: "var(--water-blue)" }} />
-            <span>DATA SOURCES UTILIZED</span>
-          </div>
-
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-            {dataUsed.map((item, idx) => (
-              <span key={idx} style={{ padding: "6px 12px", background: "var(--bg-app)", borderRadius: "var(--radius-md)", fontSize: "0.8rem", fontWeight: 700, border: "1px solid var(--border)" }}>
-                {item}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {couldChange.length > 0 && (
-          <div style={{ marginBottom: "24px" }}>
-            <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-muted)", marginBottom: "12px", display: "flex", alignItems: "center", gap: "6px" }}>
-              <Compass size={16} style={{ color: "var(--warning)" }} />
-              <span>WHAT COULD CHANGE THIS DECISION?</span>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              {couldChange.map((item, idx) => (
-                <div key={idx} style={{ fontSize: "0.85rem", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: "8px" }}>
-                  <span style={{ color: "var(--warning)" }}>•</span>
-                  <span>{item}</span>
-                </div>
-              ))}
+        <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginBottom: "24px" }}>
+          <div style={{ padding: "14px", background: "#F8FAFC", borderRadius: "10px", borderLeft: "4px solid #059669" }}>
+            <div style={{ fontWeight: 800, color: "#0F172A", fontSize: "0.85rem" }}>1. Reference Evapotranspiration (ET0)</div>
+            <div style={{ fontSize: "0.8rem", color: "#64748B", marginTop: "4px" }}>
+              ET0 calculated from solar radiation, temperature, relative humidity, and wind speed.
             </div>
           </div>
-        )}
 
-        <div style={{ marginTop: "auto", padding: "16px", background: "var(--primary-bg)", borderRadius: "var(--radius-md)", fontSize: "0.8rem", color: "var(--primary-dark)" }}>
-          <div style={{ fontWeight: 800, marginBottom: "2px" }}>Engine Architecture Notice</div>
-          This decision was computed deterministically by <code>{decision.rule_version || "irrigation-engine-v1"}</code>. The conversational LLM does not independently calculate water quantities or activate physical hardware.
+          <div style={{ padding: "14px", background: "#F8FAFC", borderRadius: "10px", borderLeft: "4px solid #2563EB" }}>
+            <div style={{ fontWeight: 800, color: "#0F172A", fontSize: "0.85rem" }}>2. Root Zone Depletion (Dr)</div>
+            <div style={{ fontSize: "0.8rem", color: "#64748B", marginTop: "4px" }}>
+              Measures soil moisture deficit against Total Available Water (TAW) and Readily Available Water (RAW).
+            </div>
+          </div>
+
+          <div style={{ padding: "14px", background: "#F8FAFC", borderRadius: "10px", borderLeft: "4px solid #D97706" }}>
+            <div style={{ fontWeight: 800, color: "#0F172A", fontSize: "0.85rem" }}>3. Safety Capping Protocol</div>
+            <div style={{ fontSize: "0.8rem", color: "#64748B", marginTop: "4px" }}>
+              Pump runtime is calculated from irrigation efficiency and capped at a maximum of 7,200s (120 minutes) to prevent accidental flooding.
+            </div>
+          </div>
         </div>
+
+        <button onClick={onClose} style={{ marginTop: "auto", padding: "12px", borderRadius: "10px", border: "none", background: "#0F172A", color: "white", fontWeight: 800, cursor: "pointer" }}>
+          Close Explainability Panel
+        </button>
       </div>
     </div>
   );

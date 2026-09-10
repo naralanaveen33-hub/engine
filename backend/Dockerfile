@@ -8,9 +8,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ /app/backend/
 COPY ml/ /app/ml/
 
-ENV PYTHONPATH=/app/backend
-ENV PYTHONUNBUFFERED=1
-
 WORKDIR /app/backend
 
 EXPOSE 8000

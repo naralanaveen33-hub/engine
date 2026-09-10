@@ -16,13 +16,16 @@ STAGE_DEMAND = {
 }
 
 SCENARIOS = {
-    "DRY_DAY": {"precip_prob": 5.0, "precip_mm": 0.0, "temp_delta": 0},
-    "NORMAL_DAY": {"precip_prob": 20.0, "precip_mm": 0.0, "temp_delta": 0},
-    "RAIN_TOMORROW": {"precip_prob": 75.0, "precip_mm": 8.0, "temp_delta": 0},
-    "HEAVY_RAIN": {"precip_prob": 90.0, "precip_mm": 25.0, "temp_delta": 0},
-    "HEAT_WAVE": {"precip_prob": 5.0, "precip_mm": 0.0, "temp_delta": 8},
-    "DROUGHT": {"precip_prob": 2.0, "precip_mm": 0.0, "temp_delta": 4},
-    "HIGH_HUMIDITY": {"precip_prob": 40.0, "precip_mm": 1.0, "temp_delta": 0},
+    "DRY_DAY": {"precip_prob": 5.0, "precip_mm": 0.0, "temp_c": 32.0, "moisture_pct": 24.0},
+    "NORMAL_DAY": {"precip_prob": 20.0, "precip_mm": 0.0, "temp_c": 30.0, "moisture_pct": 35.0},
+    "RAIN_TOMORROW": {"precip_prob": 75.0, "precip_mm": 8.0, "temp_c": 26.0, "moisture_pct": 38.0},
+    "HEAVY_RAIN": {"precip_prob": 90.0, "precip_mm": 25.0, "temp_c": 24.0, "moisture_pct": 45.0},
+    "HEAVY_RAIN_50MM": {"precip_prob": 95.0, "precip_mm": 50.0, "temp_c": 22.0, "moisture_pct": 52.0},
+    "HEAT_WAVE": {"precip_prob": 5.0, "precip_mm": 0.0, "temp_c": 38.0, "moisture_pct": 25.0},
+    "HEATWAVE_38C": {"precip_prob": 5.0, "precip_mm": 0.0, "temp_c": 38.0, "moisture_pct": 25.0},
+    "DROUGHT": {"precip_prob": 2.0, "precip_mm": 0.0, "temp_c": 35.0, "moisture_pct": 18.0},
+    "DROUGHT_20PCT": {"precip_prob": 2.0, "precip_mm": 0.0, "temp_c": 36.0, "moisture_pct": 18.0},
+    "HIGH_HUMIDITY": {"precip_prob": 40.0, "precip_mm": 1.0, "temp_c": 28.0, "moisture_pct": 40.0},
 }
 
 
@@ -83,21 +86,37 @@ def evaluate_irrigation(inp: IrrigationInput) -> IrrigationResult:
     mode = "REAL"
     if inp.simulation_scenario:
         mode = "SIMULATION"
-        overlay = SCENARIOS.get(inp.simulation_scenario.upper())
+        scen_key = inp.simulation_scenario.upper()
+        overlay = SCENARIOS.get(scen_key)
+        if not overlay:
+            if "DROUGHT" in scen_key:
+                overlay = SCENARIOS["DROUGHT_20PCT"]
+            elif "HEAVY" in scen_key or "RAIN" in scen_key:
+                overlay = SCENARIOS["HEAVY_RAIN_50MM"]
+            elif "HEAT" in scen_key:
+                overlay = SCENARIOS["HEATWAVE_38C"]
+            else:
+                overlay = SCENARIOS["NORMAL_DAY"]
+        
         if overlay:
             rain_prob = overlay["precip_prob"]
             precip = overlay["precip_mm"]
+            if "moisture_pct" in overlay:
+                inp.moisture_pct = overlay["moisture_pct"]
+            inp.moisture_health = "HEALTHY"
+            inp.weather_available = True
             sources["weather_overlay"] = "SIMULATION"
-            reasons.append(f"SIMULATION_{inp.simulation_scenario.upper()}")
+            sources["soil_moisture"] = "SIMULATION"
+            reasons.append(f"SIMULATION_{scen_key}")
 
     freshness = "FRESH"
     quality = "OK"
-    confidence = 0.85
+    confidence = 0.95
     execute_blocked = False
 
-    if inp.moisture_health in (SensorHealthStatus.INVALID, SensorHealthStatus.OFFLINE) or inp.moisture_pct is None:
+    if mode != "SIMULATION" and (inp.moisture_health in (SensorHealthStatus.INVALID, SensorHealthStatus.OFFLINE, "INVALID", "OFFLINE") or inp.moisture_pct is None):
         freshness = "BAD"
-        quality = inp.moisture_health or "MISSING"
+        quality = str(inp.moisture_health or "MISSING")
         confidence = 0.25
         execute_blocked = True
         reasons.append("SENSOR_UNRELIABLE")

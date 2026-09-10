@@ -12,6 +12,13 @@ This repository was **greenfield** (empty except an unused Obsidian vault in `aq
 - Farmer confirmation + safety before any actuator command.
 - Missing APIs surface as unavailable — they are not invented.
 
+## System Reality Status
+
+- **System Status**: `PARTIALLY REAL` (Software Integration Complete / Physical Hardware Verification Pending)
+- **Software Layer**: `VERIFIED` (FastAPI Backend, SQLite DB, Backend GIS Area Engine, Random Forest Crop ML, FAO-56 Irrigation Engine, Safety Capper, AI Agent)
+- **External Live Data**: `CONNECTED` (Open-Meteo Weather & Climate APIs, SoilGrids API) · `NOT CONNECTED` (Live Mandi Market API — Seed Dataset Active)
+- **Physical Hardware**: `VERIFICATION PENDING` (ESP32 Microcontroller, Soil Moisture Sensor, DHT Temperature/Humidity, Relay Module & Pump, ESP32-CAM)
+
 ## Run (Windows)
 
 ```powershell

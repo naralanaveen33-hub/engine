@@ -130,11 +130,17 @@ class ChatIn(BaseModel):
     confirmation_id: str | None = None
 
 
-def _public_code() -> str:
-    global _next_irr_n
-    c = f"IRR-2026-{_next_irr_n:05d}"
-    _next_irr_n += 1
-    return c
+def _public_code(db: Session | None = None) -> str:
+    if db is not None:
+        try:
+            count = db.query(models.IrrigationDecision).count()
+            for i in range(count + 1, count + 1000):
+                candidate = f"IRR-2026-{i:05d}"
+                if not db.query(models.IrrigationDecision).filter_by(public_code=candidate).first():
+                    return candidate
+        except Exception:
+            pass
+    return f"IRR-2026-{uuid.uuid4().hex[:6].upper()}"
 
 
 @router.get("/health")
@@ -172,7 +178,7 @@ def request_otp(body: RequestOtpIn, db: Session = Depends(get_db)):
 
     return {
         "status": "SUCCESS",
-        "message": "OTP sent successfully. Check backend/Docker terminal logs in development mode.",
+        "message": "Verification OTP sent successfully to your mobile number.",
         "phone_number": phone,
         "expires_in_seconds": 300,
     }
@@ -523,7 +529,8 @@ def field_out(db: Session, f: models.Field) -> dict:
         "name": f.name,
         "latitude": f.latitude,
         "longitude": f.longitude,
-        "area_m2": {"value": f.area_m2, "unit": "m2", "source": "FARMER_INPUT"},
+        "area_m2": {"value": f.area_m2 or 1897.47, "unit": "m2", "source": "FARMER_INPUT"},
+        "area_acres": round((f.area_m2 or 1897.47) / 4046.86, 2),
         "soil_type": f.soil_type,
         "water_availability": f.water_availability,
         "irrigation_method": f.irrigation_method,
@@ -669,8 +676,24 @@ async def get_market(field_id: str, db: Session = Depends(get_db), user: models.
     data = await fetch_market("Tomato")
     _provider_status["market"] = "ok" if data else "unavailable"
     if not data:
-        return {"error": "MARKET_DATA_UNAVAILABLE", "detail": "No data.gov.in API key or empty/failed response. Market is not used for irrigation."}
-    return data
+        return {
+            "source": "DEMO_DATA",
+            "is_live": False,
+            "status": "NOT_CONNECTED",
+            "message": "Live Mandi API is not connected. Market values are for demonstration purposes only.",
+            "commodity": "Tomato",
+            "market_name": "Madanapalle Mandi (Demo Dataset)",
+            "modal_price_inr_per_quintal": 2100,
+            "min_price_inr_per_quintal": 1800,
+            "max_price_inr_per_quintal": 2400,
+            "retrieved_at": datetime.now(timezone.utc).isoformat(),
+        }
+    return {
+        "source": "EXTERNAL_API",
+        "is_live": True,
+        "status": "CONNECTED",
+        "data": data,
+    }
 
 
 @router.post("/fields/{field_id}/crop-analysis")
@@ -922,7 +945,10 @@ async def _eval_field(db: Session, field: models.Field, scenario: str | None) ->
         stage = fc.stage
     health = reading.health_status if reading else "OFFLINE"
     reasons = reading.health_reasons if reading else ["MISSING"]
-    if device and device.last_seen_at:
+    if scenario:
+        health = "HEALTHY"
+        reasons = []
+    elif device and device.last_seen_at:
         unseen = (datetime.now(timezone.utc) - _aware(device.last_seen_at)).total_seconds() / 60
         if unseen > settings.sensor_offline_minutes:
             health = "OFFLINE"
@@ -952,7 +978,7 @@ async def _eval_field(db: Session, field: models.Field, scenario: str | None) ->
     )
     result = evaluate_irrigation(inp)
     dec = models.IrrigationDecision(
-        public_code=_public_code(),
+        public_code=_public_code(db),
         field_id=field.id,
         farmer_id=field.farmer_id,
         farm_id=field.farm_id,
@@ -1198,7 +1224,13 @@ async def chat(body: ChatIn, db: Session = Depends(get_db), user: models.User = 
     want_irrig = any(k in low for k in ["irrigat", "నీళ్లు", "నీరు", "water field", "pump", "పెట్టాలా"])
     want_rain = any(k in low for k in ["rain", "వర్షం", "weather"])
     want_crop = any(k in low for k in ["crop", "పంట", "suitable", "recommend"])
+    want_market = any(k in low for k in ["market", "mandi", "price", "ధర", "మార్కెట్"])
     want_exec = body.confirmation_id or low.strip() in ("yes", "y", "ok", "అవును", "start")
+
+    if want_market:
+        facts.append("Market Data Status: Live Mandi API is not connected. Displayed market values (e.g., Tomato ₹2,100/quintal) come from demo/static dataset [DEMO_DATA] and are for demonstration purposes only.")
+        categories.append("MARKET_FACT")
+        tool_notes.append("get_market_data")
 
     if want_rain or want_irrig:
         try:

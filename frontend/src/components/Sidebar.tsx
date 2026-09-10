@@ -1,5 +1,5 @@
 import React from "react";
-import { LayoutDashboard, Sprout, Droplets, Camera, MessageSquare, History, Play, ShieldAlert, SlidersHorizontal } from "lucide-react";
+import { LayoutDashboard, Sprout, Droplets, Camera, MessageSquare, History, Play, SlidersHorizontal } from "lucide-react";
 
 interface SidebarProps {
   activeTab: string;
@@ -48,7 +48,7 @@ export function Sidebar({ activeTab, onTabChange, userRole }: SidebarProps) {
       </nav>
 
       <div className="sidebar-footer">
-        <div style={{ fontWeight: 700, color: "#94A3B8", marginBottom: "2px" }}>Swarnandhra Hackathon 2026</div>
+        <div style={{ fontWeight: 700, color: "#94A3B8", marginBottom: "2px" }}>AquaCrop Enterprise v1.0</div>
         <div>Field-Centric Decision Platform</div>
       </div>
     </aside>

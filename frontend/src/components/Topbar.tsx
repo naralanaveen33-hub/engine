@@ -1,5 +1,5 @@
 import React from "react";
-import { Sprout, CloudSun, Bell, ChevronDown, User } from "lucide-react";
+import { Sprout, CloudSun, Bell, ChevronDown, User, LogOut } from "lucide-react";
 
 interface TopbarProps {
   user: any;
@@ -7,9 +7,10 @@ interface TopbarProps {
   currentField: any;
   onSelectField: (id: string) => void;
   alertCount: number;
+  onLogout: () => void;
 }
 
-export function Topbar({ user, fields, currentField, onSelectField, alertCount }: TopbarProps) {
+export function Topbar({ user, fields, currentField, onSelectField, alertCount, onLogout }: TopbarProps) {
   return (
     <header className="topbar">
       <div className="topbar-left">
@@ -71,6 +72,28 @@ export function Topbar({ user, fields, currentField, onSelectField, alertCount }
             <span className="user-role">{user?.role || "farmer"}</span>
           </div>
         </div>
+
+        <button
+          onClick={onLogout}
+          title="Logout of AquaCrop"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            padding: "8px 14px",
+            borderRadius: "var(--radius-md)",
+            border: "1px solid #FECACA",
+            background: "#FEF2F2",
+            color: "#DC2626",
+            fontWeight: 700,
+            fontSize: "0.82rem",
+            cursor: "pointer",
+            transition: "all 0.2s ease",
+          }}
+        >
+          <LogOut size={16} />
+          <span>Logout</span>
+        </button>
       </div>
     </header>
   );

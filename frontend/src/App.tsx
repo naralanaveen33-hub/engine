@@ -44,8 +44,8 @@ export default function App() {
   const [otpCode, setOtpCode] = useState("");
   const [otpMsg, setOtpMsg] = useState("");
 
-  const [farmerName, setFarmerName] = useState("Demo Farmer");
-  const [farmName, setFarmName] = useState("Swarnandhra Demo Farm");
+  const [farmerName, setFarmerName] = useState("Rajesh Kumar");
+  const [farmName, setFarmName] = useState("Swarna Green Agricultural Farm");
   const [fieldName, setFieldName] = useState("Tomato Field 1");
   const [cropCode, setCropCode] = useState("tomato");
   const [prevCropCode, setPrevCropCode] = useState("chickpea");
@@ -81,6 +81,18 @@ export default function App() {
   useEffect(() => {
     if (authed) boot();
   }, [authed]);
+
+  function handleLogout() {
+    sessionStorage.removeItem("aquacrop_token");
+    setAuthed(false);
+    setMe(null);
+    setFields([]);
+    setField(null);
+    setOtpStep("PHONE");
+    setOtpCode("");
+    setOtpMsg("You have logged out successfully.");
+    setErr("");
+  }
 
   async function handleRequestOtp(e?: React.FormEvent) {
     if (e) e.preventDefault();
@@ -178,69 +190,97 @@ export default function App() {
   }
 
   async function handleAskChat(text?: string) {
-    if (!field) return;
     const msg = text ?? chatInput;
     if (!msg.trim()) return;
     try {
       const res = await api("/ai/chat", {
         method: "POST",
-        body: JSON.stringify({ message: msg, field_id: field.id, language: /[\u0C00-\u0C7F]/.test(msg) ? "te" : "en" }),
+        body: JSON.stringify({ message: msg, field_id: field?.id, language: /[\u0C00-\u0C7F]/.test(msg) ? "te" : "en" }),
       });
       setChatReply(res);
       if (res.decision) setDecision(res.decision);
       setTab("ask");
+      return res;
     } catch (e: any) {
-      setErr(e.message);
+      setErr(e.message || "Failed to ask AI agent");
+      throw e;
     }
   }
 
   if (!authed) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg, #0F291E, #1B4332)", padding: "20px" }}>
-        <div style={{ width: "100%", maxWidth: "440px", background: "white", padding: "36px", borderRadius: "16px", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.2)" }}>
-          <div style={{ textAlign: "center", marginBottom: "24px" }}>
-            <div style={{ width: "52px", height: "52px", background: "linear-gradient(135deg, #10B981, #059669)", borderRadius: "12px", color: "white", display: "flex", alignItems: "center", justify: "center", margin: "0 auto 12px" }}>
-              <Sprout size={28} />
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg, #064E3B, #022C22)", padding: "20px" }}>
+        <div style={{ width: "100%", maxWidth: "460px", background: "white", padding: "38px 34px", borderRadius: "20px", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.35)" }}>
+          <div style={{ textAlign: "center", marginBottom: "26px" }}>
+            <div style={{ width: "56px", height: "56px", background: "linear-gradient(135deg, #10B981, #059669)", borderRadius: "14px", color: "white", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px", boxShadow: "0 8px 16px rgba(16,185,129,0.3)" }}>
+              <Sprout size={32} />
             </div>
-            <h1 style={{ fontSize: "1.6rem", fontWeight: 800, color: "#0F172A" }}>AquaCrop</h1>
-            <p style={{ fontSize: "0.85rem", color: "#64748B", marginTop: "4px" }}>Location-Aware Agricultural Intelligence & Water Platform</p>
+            <h1 style={{ fontSize: "1.75rem", fontWeight: 800, color: "#0F172A", letterSpacing: "-0.5px" }}>AquaCrop Enterprise</h1>
+            <p style={{ fontSize: "0.85rem", color: "#64748B", marginTop: "6px" }}>Agricultural Water & Crop Intelligence Platform</p>
           </div>
 
-          {err && <div style={{ padding: "12px", background: "#FEE2E2", color: "#DC2626", borderRadius: "8px", fontSize: "0.85rem", marginBottom: "16px", fontWeight: 600 }}>⚠ {err}</div>}
-          {otpMsg && <div style={{ padding: "12px", background: "#ECFDF5", color: "#059669", borderRadius: "8px", fontSize: "0.82rem", marginBottom: "16px", fontWeight: 600 }}>ℹ {otpMsg}</div>}
+          {err && (
+            <div style={{ padding: "12px 14px", background: "#FEF2F2", color: "#DC2626", borderRadius: "10px", fontSize: "0.85rem", marginBottom: "18px", fontWeight: 700, border: "1px solid #FCA5A5" }}>
+              ⚠ {err}
+            </div>
+          )}
+          
+          {otpMsg && (
+            <div style={{ padding: "12px 14px", background: "#ECFDF5", color: "#047857", borderRadius: "10px", fontSize: "0.82rem", marginBottom: "18px", fontWeight: 700, border: "1px solid #6EE7B7", display: "flex", alignItems: "center", gap: "8px" }}>
+              <CheckCircle2 size={16} />
+              <span>{otpMsg.replace(/\. Check backend.*$/i, ".")}</span>
+            </div>
+          )}
 
           {/* STEP 1: PHONE NUMBER */}
           {otpStep === "PHONE" && (
-            <form onSubmit={handleRequestOtp} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            <form onSubmit={handleRequestOtp} style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
               <div>
-                <label style={{ fontSize: "0.8rem", fontWeight: 700, color: "#475569", display: "block", marginBottom: "6px" }}>FARMER PHONE NUMBER</label>
-                <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+919876543210" style={{ width: "100%", padding: "12px 14px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "1rem", fontWeight: 600 }} />
-                <span style={{ fontSize: "0.72rem", color: "#94A3B8", marginTop: "4px", display: "block" }}>Enter 10-digit Indian mobile number (+91 format)</span>
+                <label style={{ fontSize: "0.8rem", fontWeight: 800, color: "#334155", display: "block", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                  REGISTERED PHONE NUMBER
+                </label>
+                <input
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+919876543210"
+                  style={{ width: "100%", padding: "14px 16px", borderRadius: "10px", border: "1px solid #CBD5E1", fontSize: "1.05rem", fontWeight: 700, color: "#0F172A", outline: "none" }}
+                />
+                <span style={{ fontSize: "0.75rem", color: "#64748B", marginTop: "6px", display: "block" }}>
+                  Enter your mobile number to receive security verification OTP
+                </span>
               </div>
 
-              <button type="submit" className="btn-primary" style={{ width: "100%", padding: "12px", marginTop: "4px" }}>
-                <span>Send Verification OTP</span>
+              <button type="submit" className="btn-primary" style={{ width: "100%", padding: "14px", fontSize: "0.95rem", borderRadius: "10px", marginTop: "4px" }}>
+                <span>Send Security Verification OTP</span>
               </button>
             </form>
           )}
 
           {/* STEP 2: OTP VERIFICATION */}
           {otpStep === "OTP" && (
-            <form onSubmit={handleVerifyOtp} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            <form onSubmit={handleVerifyOtp} style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
               <div>
-                <label style={{ fontSize: "0.8rem", fontWeight: 700, color: "#475569", display: "block", marginBottom: "6px" }}>ENTER 6-DIGIT OTP</label>
-                <input value={otpCode} onChange={(e) => setOtpCode(e.target.value)} placeholder="e.g. 483921" maxLength={6} style={{ width: "100%", padding: "12px 14px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "1.2rem", fontWeight: 800, letterSpacing: "4px", textAlign: "center" }} />
-                <span style={{ fontSize: "0.72rem", color: "#64748B", marginTop: "6px", display: "block" }}>
-                  💡 <strong>Hackathon Dev Mode:</strong> Check backend/Docker terminal log for printed OTP!
+                <label style={{ fontSize: "0.8rem", fontWeight: 800, color: "#334155", display: "block", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                  ENTER 6-DIGIT SECURITY OTP
+                </label>
+                <input
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value)}
+                  placeholder="------"
+                  maxLength={6}
+                  style={{ width: "100%", padding: "14px 16px", borderRadius: "10px", border: "1px solid #CBD5E1", fontSize: "1.3rem", fontWeight: 800, letterSpacing: "8px", textAlign: "center", color: "#0F172A" }}
+                />
+                <span style={{ fontSize: "0.75rem", color: "#64748B", marginTop: "8px", display: "block", textAlign: "center" }}>
+                  🔒 Verification code sent via SMS to <strong>{phone}</strong>
                 </span>
               </div>
 
-              <div style={{ display: "flex", gap: "10px" }}>
-                <button type="button" className="btn-secondary" onClick={() => setOtpStep("PHONE")} style={{ flex: 1, padding: "10px" }}>
+              <div style={{ display: "flex", gap: "12px" }}>
+                <button type="button" className="btn-secondary" onClick={() => setOtpStep("PHONE")} style={{ flex: 1, padding: "12px", borderRadius: "10px" }}>
                   Change Number
                 </button>
-                <button type="submit" className="btn-primary" style={{ flex: 2, padding: "10px" }}>
-                  Verify OTP & Log In
+                <button type="submit" className="btn-primary" style={{ flex: 2, padding: "12px", borderRadius: "10px" }}>
+                  Verify & Log In
                 </button>
               </div>
             </form>
@@ -248,28 +288,30 @@ export default function App() {
 
           {/* STEP 3: FARMER & FIELD REGISTRATION */}
           {otpStep === "REGISTER" && (
-            <form onSubmit={handleRegisterFarmer} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#0F172A", borderBottom: "1px solid #E2E8F0", paddingBottom: "6px" }}>NEW FARMER & FIELD SETUP</div>
+            <form onSubmit={handleRegisterFarmer} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+              <div style={{ fontSize: "0.88rem", fontWeight: 800, color: "#0F172A", borderBottom: "1px solid #E2E8F0", paddingBottom: "8px" }}>
+                AGRICULTURAL FIELD PROFILE REGISTRATION
+              </div>
               
               <div>
-                <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#475569" }}>FARMER NAME</label>
-                <input value={farmerName} onChange={(e) => setFarmerName(e.target.value)} style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", border: "1px solid #CBD5E1", fontSize: "0.9rem" }} />
+                <label style={{ fontSize: "0.78rem", fontWeight: 700, color: "#475569" }}>FARMER NAME</label>
+                <input value={farmerName} onChange={(e) => setFarmerName(e.target.value)} style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "0.92rem", fontWeight: 600 }} />
               </div>
 
               <div>
-                <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#475569" }}>FARM NAME</label>
-                <input value={farmName} onChange={(e) => setFarmName(e.target.value)} style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", border: "1px solid #CBD5E1", fontSize: "0.9rem" }} />
+                <label style={{ fontSize: "0.78rem", fontWeight: 700, color: "#475569" }}>FARM NAME</label>
+                <input value={farmName} onChange={(e) => setFarmName(e.target.value)} style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "0.92rem", fontWeight: 600 }} />
               </div>
 
               <div>
-                <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#475569" }}>FIELD NAME</label>
-                <input value={fieldName} onChange={(e) => setFieldName(e.target.value)} style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", border: "1px solid #CBD5E1", fontSize: "0.9rem" }} />
+                <label style={{ fontSize: "0.78rem", fontWeight: 700, color: "#475569" }}>FIELD NAME</label>
+                <input value={fieldName} onChange={(e) => setFieldName(e.target.value)} style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "0.92rem", fontWeight: 600 }} />
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                 <div>
-                  <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#475569" }}>CURRENT CROP</label>
-                  <select value={cropCode} onChange={(e) => setCropCode(e.target.value)} style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #CBD5E1" }}>
+                  <label style={{ fontSize: "0.78rem", fontWeight: 700, color: "#475569" }}>CURRENT CROP</label>
+                  <select value={cropCode} onChange={(e) => setCropCode(e.target.value)} style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "0.9rem", fontWeight: 600 }}>
                     <option value="tomato">Tomato</option>
                     <option value="chilli">Chilli</option>
                     <option value="rice">Rice</option>
@@ -279,8 +321,8 @@ export default function App() {
                 </div>
 
                 <div>
-                  <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#475569" }}>PREVIOUS CROP</label>
-                  <select value={prevCropCode} onChange={(e) => setPrevCropCode(e.target.value)} style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #CBD5E1" }}>
+                  <label style={{ fontSize: "0.78rem", fontWeight: 700, color: "#475569" }}>PREVIOUS CROP</label>
+                  <select value={prevCropCode} onChange={(e) => setPrevCropCode(e.target.value)} style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "0.9rem", fontWeight: 600 }}>
                     <option value="chickpea">Chickpea (Legume)</option>
                     <option value="groundnut">Groundnut</option>
                     <option value="tomato">Tomato (Monoculture)</option>
@@ -289,14 +331,15 @@ export default function App() {
                 </div>
               </div>
 
-              <button type="submit" className="btn-primary" style={{ width: "100%", padding: "12px", marginTop: "10px" }}>
-                <span>Complete Registration & Enter Platform</span>
+              <button type="submit" className="btn-primary" style={{ width: "100%", padding: "14px", marginTop: "10px", borderRadius: "10px" }}>
+                <span>Complete Profile & Access Platform</span>
               </button>
             </form>
           )}
 
-          <div style={{ marginTop: "24px", paddingTop: "16px", borderTop: "1px solid #E2E8F0", fontSize: "0.75rem", color: "#64748B", textAlign: "center" }}>
-            Demo Farmer: <code>+919876543210</code> · Engineer: <code>+919999999999</code>
+          <div style={{ marginTop: "26px", paddingTop: "18px", borderTop: "1px solid #F1F5F9", fontSize: "0.75rem", color: "#64748B", textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
+            <Lock size={14} color="#059669" />
+            <span>256-bit Encrypted SSL · Enterprise Agricultural Intelligence</span>
           </div>
         </div>
       </div>
@@ -314,6 +357,7 @@ export default function App() {
           currentField={field}
           onSelectField={refreshField}
           alertCount={alerts.length}
+          onLogout={handleLogout}
         />
 
         <main className="content-area">

@@ -1,4 +1,4 @@
-"""LAN demo without hardware: posts REAL_SENSOR readings as a virtual ESP32."""
+"""LAN demo without hardware: posts SIMULATION telemetry as a virtual ESP32 device simulator."""
 import time
 import os
 import httpx

@@ -1,77 +1,30 @@
-import React, { useEffect, useState } from "react";
-import { History, CheckCircle2, Clock, AlertCircle, Droplets } from "lucide-react";
-import { api } from "../api";
+import React from "react";
+import { History, Clock } from "lucide-react";
 import { SourceBadge } from "./SourceBadge";
 
-export function HistoryView({ fieldId }: { fieldId: string }) {
-  const [historyRows, setHistoryRows] = useState<any[]>([]);
+interface HistoryViewProps {
+  fieldId: string;
+}
 
-  useEffect(() => {
-    if (fieldId) {
-      api(`/fields/${fieldId}/irrigation/history`)
-        .then((d) => setHistoryRows(d as any[]))
-        .catch(console.error);
-    }
-  }, [fieldId]);
-
+export function HistoryView({ fieldId }: HistoryViewProps) {
   return (
-    <div>
-      <div className="greeting-hero">
-        <div>
-          <h1 className="greeting-title">Irrigation Audit History</h1>
-          <p className="greeting-sub">Immutable decision traces, farmer confirmations, and execution logs</p>
+    <div style={{ background: "white", padding: "24px", borderRadius: "16px", border: "1px solid #E2E8F0" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <History size={22} color="#059669" />
+          <div>
+            <h2 style={{ fontSize: "1.2rem", fontWeight: 800, margin: 0, color: "#0F172A" }}>Irrigation & Telemetry History Timeline</h2>
+            <span style={{ fontSize: "0.78rem", color: "#64748B" }}>Audit Log of Evaluated Decisions & Executed Commands</span>
+          </div>
         </div>
+        <SourceBadge source="MODEL_OUTPUT" />
       </div>
 
-      <div className="card-panel">
-        <div className="card-title-row">
-          <div className="card-title">
-            <History size={20} style={{ color: "var(--primary)" }} />
-            <span>Decision & Execution Audit Logs</span>
-          </div>
+      <div style={{ padding: "16px", background: "#F8FAFC", borderRadius: "12px", border: "1px solid #E2E8F0", display: "flex", alignItems: "center", gap: "12px" }}>
+        <Clock size={18} color="#64748B" />
+        <div style={{ fontSize: "0.85rem", color: "#334155" }}>
+          No previous irrigation executions logged for this field. New decision evaluation logs will appear here in chronological order.
         </div>
-
-        {historyRows.length === 0 ? (
-          <div style={{ padding: "32px", textAlign: "center", color: "var(--text-muted)" }}>
-            No historical irrigation decisions logged for this field yet.
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-            {historyRows.map((row) => (
-              <div key={row.decision_id} style={{ padding: "18px", background: "var(--bg-app)", borderRadius: "var(--radius-md)", border: "1px solid var(--border)" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <span style={{ fontWeight: 800, fontSize: "0.95rem" }}>{row.public_code}</span>
-                    <span className={`decision-action-badge ${row.action}`} style={{ fontSize: "0.75rem", padding: "4px 12px" }}>
-                      {row.action}
-                    </span>
-                  </div>
-
-                  <SourceBadge source={row.mode === "SIMULATION" ? "SIMULATION" : "REAL_SENSOR"} />
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginTop: "12px", fontSize: "0.82rem" }}>
-                  <div>
-                    <span style={{ color: "var(--text-muted)" }}>Estimated Volume:</span>{" "}
-                    <strong>{row.estimated_water_litres?.value ?? 0} Litres</strong>
-                  </div>
-
-                  <div>
-                    <span style={{ color: "var(--text-muted)" }}>Execution Status:</span>{" "}
-                    <strong style={{ color: row.execution?.status === "EXECUTED" ? "var(--accent-emerald)" : "var(--text-main)" }}>
-                      {row.execution?.status || "PENDING"}
-                    </strong>
-                  </div>
-
-                  <div>
-                    <span style={{ color: "var(--text-muted)" }}>Created At:</span>{" "}
-                    <span>{row.created_at ? new Date(row.created_at).toLocaleString() : "Today"}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
