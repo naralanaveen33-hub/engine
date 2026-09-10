@@ -34,13 +34,14 @@
 #define FLASH_LED_PIN      4 // Onboard Bright Flash LED
 
 // ===================================================================================
-// NETWORK & AQUACROP API CONFIGURATION
+// NETWORK & AQUACROP API CONFIGURATION (Local Stream IP: http://10.227.62.1/)
 // ===================================================================================
 const char* WIFI_SSID    = "Hi";
 const char* WIFI_PASS    = "123456789";
 const char* API_HOST     = "http://10.227.62.41:8000";
 const char* HARDWARE_ID  = "esp32-cam-01";
 const char* DEVICE_TOKEN = "esp32-demo-token";
+// Local Camera Video Stream: http://10.227.62.1/
 // Function Prototypes for C++ Compliance
 void uploadFieldSnapshot();
 

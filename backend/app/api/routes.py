@@ -490,9 +490,10 @@ def get_field_camera_status(field_id: str, db: Session = Depends(get_db), user: 
         "source": "REAL_CAMERA" if camera_online else "UNKNOWN",
         "resolution": "1600x1200 (UXGA)",
         "last_snapshot_at": dev.camera_last_seen_at.isoformat() if dev and dev.camera_last_seen_at else None,
-        "stream_url": f"/api/v1/fields/{field.id}/camera/stream",
-        "snapshot_url": f"/api/v1/fields/{field.id}/camera/snapshot",
-        "disclaimer": "ESP32-CAM is for visual field monitoring only. It does not directly actuate irrigation hardware.",
+        "local_camera_ip": "http://10.227.62.1/",
+        "stream_url": "http://10.227.62.1/",
+        "snapshot_url": "http://10.227.62.1/capture",
+        "disclaimer": "ESP32-CAM local video stream configured at http://10.227.62.1/",
     }
 
 
@@ -506,8 +507,9 @@ def get_field_camera_snapshot(field_id: str, db: Session = Depends(get_db), user
         "status": "ONLINE" if camera_online else "NOT_CONNECTED",
         "source": "REAL_CAMERA" if camera_online else "UNKNOWN",
         "captured_at": dev.camera_last_seen_at.isoformat() if dev and dev.camera_last_seen_at else None,
-        "image_url": f"https://placehold.co/600x350/1b4332/52b788?text=📷+ESP32-CAM+FIELD+VIEW:+{field.name.replace(' ', '+')}",
-        "disclaimer": "Visual monitoring feed" if camera_online else "No recent image received from the ESP32-CAM.",
+        "image_url": "http://10.227.62.1/",
+        "local_camera_ip": "http://10.227.62.1/",
+        "disclaimer": "Visual monitoring feed streaming from http://10.227.62.1/",
     }
 
 
