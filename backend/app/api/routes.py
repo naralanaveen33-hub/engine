@@ -1149,9 +1149,10 @@ async def simulate(body: SimIn, db: Session = Depends(get_db), user: models.User
 
 @router.get("/alerts")
 def alerts(db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
-    q = db.query(models.Alert).order_by(models.Alert.ts.desc()).limit(50)
+    q = db.query(models.Alert)
     if user.role == "farmer" and user.farmer:
         q = q.filter_by(farmer_id=user.farmer.id)
+    q = q.order_by(models.Alert.ts.desc()).limit(50)
     return [
         {"id": a.id, "type": a.type, "severity": a.severity, "message": a.message, "source": a.source, "ts": a.ts.isoformat(), "acknowledged": a.acknowledged, "field_id": a.field_id}
         for a in q.all()
