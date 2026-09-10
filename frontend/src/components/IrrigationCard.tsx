@@ -1,5 +1,5 @@
 import React from "react";
-import { Droplets, ShieldCheck, HelpCircle, CheckCircle, AlertTriangle } from "lucide-react";
+import { Droplets, ShieldCheck, HelpCircle, CheckCircle, CheckCircle2, AlertTriangle } from "lucide-react";
 import { SourceBadge } from "./SourceBadge";
 
 interface IrrigationCardProps {
