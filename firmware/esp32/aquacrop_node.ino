@@ -32,9 +32,9 @@ const bool RELAY_OFF = LOW;    // Set to HIGH if using Active-LOW Relay module
 // ===================================================================================
 // NETWORK & AQUACROP API CONFIGURATION
 // ===================================================================================
-const char* WIFI_SSID     = "Your_WiFi_SSID";         // Replace with your WiFi SSID
-const char* WIFI_PASS     = "Your_WiFi_Password";     // Replace with your WiFi Password
-const char* API_HOST      = "http://192.168.1.10:8000"; // Replace with Laptop/Server IP
+const char* WIFI_SSID     = "Hi";         // Replace with your WiFi SSID
+const char* WIFI_PASS     = "123456789";     // Replace with your WiFi Password
+const char* API_HOST      = "http://10.227.62.41:8000"; // Laptop IP Address (10.227.62.41)
 const char* HARDWARE_ID   = "esp32-demo-01";          // Unique Device Hardware ID
 const char* DEVICE_TOKEN  = "esp32-demo-token";       // Device Token for X-Device-Token Header
 

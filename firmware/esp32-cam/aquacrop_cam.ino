@@ -38,7 +38,7 @@
 // ===================================================================================
 const char* WIFI_SSID    = "Your_WiFi_SSID";
 const char* WIFI_PASS    = "Your_WiFi_Password";
-const char* API_HOST     = "http://192.168.1.10:8000";
+const char* API_HOST     = "http://10.227.62.41:8000";
 const char* HARDWARE_ID  = "esp32-cam-01";
 const char* DEVICE_TOKEN = "esp32-demo-token";
 
