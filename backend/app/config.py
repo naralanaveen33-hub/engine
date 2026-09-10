@@ -19,7 +19,7 @@ try:
         hackathon_demo: bool = True
         demo_password: str = "demo1234"
         max_actuator_seconds: int = 30
-        sensor_offline_minutes: int = 10
+        sensor_offline_minutes: int = 1
         decision_ttl_minutes: int = 120
 
         @property
@@ -44,7 +44,7 @@ except ImportError:
         hackathon_demo: bool = True
         demo_password: str = os.getenv("DEMO_PASSWORD", "demo1234")
         max_actuator_seconds: int = int(os.getenv("MAX_ACTUATOR_SECONDS", "30"))
-        sensor_offline_minutes: int = int(os.getenv("SENSOR_OFFLINE_MINUTES", "10"))
+        sensor_offline_minutes: int = int(os.getenv("SENSOR_OFFLINE_MINUTES", "1"))
         decision_ttl_minutes: int = int(os.getenv("DECISION_TTL_MINUTES", "120"))
 
         @property

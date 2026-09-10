@@ -14,7 +14,7 @@ def main():
         r = httpx.post(
             f"{API}/sensor/readings",
             headers={"X-Device-Token": TOKEN},
-            json={"device_id": DEVICE, "soil_moisture": MOISTURE, "temperature": 31.2, "humidity": 58, "battery": 82},
+            json={"device_id": DEVICE, "source": "SIMULATION", "soil_moisture": MOISTURE, "temperature": 31.2, "humidity": 58, "battery": 82},
             timeout=5,
         )
         print("ingest", r.status_code, r.text[:200])

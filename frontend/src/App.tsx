@@ -82,6 +82,12 @@ export default function App() {
     if (authed) boot();
   }, [authed]);
 
+  useEffect(() => {
+    if (!authed || !field?.id) return;
+    const refreshTimer = window.setInterval(() => refreshField(field.id), 5000);
+    return () => window.clearInterval(refreshTimer);
+  }, [authed, field?.id]);
+
   function handleLogout() {
     sessionStorage.removeItem("aquacrop_token");
     setAuthed(false);
@@ -406,12 +412,12 @@ export default function App() {
 
                 <StatCard
                   label="SOIL MOISTURE"
-                  value={`${field.latest_sensors?.soil_moisture?.value ?? 24}%`}
+                  value={field.latest_sensors?.soil_moisture?.value != null ? `${field.latest_sensors.soil_moisture.value}%` : "--"}
                   icon={<Droplets size={20} />}
                   iconBg="var(--accent-mint)"
                   iconColor="var(--primary-dark)"
                   footerText={`Health: ${field.latest_sensors?.health_status || "HEALTHY"}`}
-                  source={field.latest_sensors?.soil_moisture?.source || "REAL_SENSOR"}
+                  source={field.latest_sensors?.soil_moisture?.source || "UNKNOWN"}
                 />
 
                 <StatCard
@@ -426,12 +432,12 @@ export default function App() {
 
                 <StatCard
                   label="DEVICE TELEMETRY"
-                  value={field.device ? (field.device.online ? "ONLINE" : "OFFLINE") : "ONLINE"}
+                  value={field.device?.online ? "ONLINE" : "OFFLINE"}
                   icon={<Radio size={20} />}
                   iconBg="var(--accent-mint)"
                   iconColor="var(--accent-emerald)"
                   footerText={field.device?.hardware_id || "esp32-demo-01"}
-                  source="REAL_SENSOR"
+                  source={field.device?.online ? "REAL_SENSOR" : "UNKNOWN"}
                 />
               </div>
 
@@ -440,6 +446,7 @@ export default function App() {
                   {/* Hero Irrigation Card */}
                   <IrrigationCard
                     decision={decision}
+                    device={field.device}
                     onOpenWhy={() => setShowWhy(true)}
                     onOpenConfirm={() => setShowConfirm(true)}
                   />

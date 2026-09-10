@@ -10,14 +10,18 @@ interface DeviceHealthCardProps {
 
 export function DeviceHealthCard({ sensors, device, latestSensors }: DeviceHealthCardProps) {
   const telemetry = latestSensors || sensors;
-  const isOnline = device ? device.online : true;
-  const source = telemetry?.source || (isOnline ? "REAL_SENSOR" : "SIMULATION");
-  const isReal = source === "REAL_SENSOR" || isOnline;
+  const isOnline = Boolean(device?.online);
+  const source = telemetry?.soil_moisture?.source || telemetry?.source;
+  const isReal = isOnline && source === "REAL_SENSOR";
+  const isSimulation = isOnline && source === "SIMULATION";
   const health = telemetry?.health_status || "HEALTHY";
 
-  const soilMoistureVal = telemetry?.soil_moisture ?? sensors?.soil_moisture?.value ?? 0;
-  const tempVal = telemetry?.temperature ?? sensors?.temperature?.value ?? 28;
-  const humidityVal = telemetry?.humidity ?? sensors?.humidity?.value ?? 58;
+  const sensorValue = (value: any, fallback: number) =>
+    typeof value === "object" && value !== null ? (value.value ?? fallback) : (value ?? fallback);
+
+  const soilMoistureVal = isOnline ? sensorValue(telemetry?.soil_moisture, sensors?.soil_moisture?.value ?? 0) : "--";
+  const tempVal = isOnline ? sensorValue(telemetry?.temperature, sensors?.temperature?.value ?? 28) : "--";
+  const humidityVal = isOnline ? sensorValue(telemetry?.humidity, sensors?.humidity?.value ?? 58) : "--";
 
   return (
     <div style={{ background: "white", padding: "20px", borderRadius: "14px", border: "1px solid #E2E8F0" }}>
@@ -26,7 +30,7 @@ export function DeviceHealthCard({ sensors, device, latestSensors }: DeviceHealt
           <Activity size={18} color="#059669" />
           <h3 style={{ fontSize: "1rem", fontWeight: 800, margin: 0, color: "#0F172A" }}>Device & Sensor Telemetry</h3>
         </div>
-        <SourceBadge source={isReal ? "REAL_SENSOR" : "SIMULATION"} />
+        <SourceBadge source={isOnline ? source || "UNKNOWN" : "UNKNOWN"} />
       </div>
 
       {isReal ? (
@@ -34,10 +38,14 @@ export function DeviceHealthCard({ sensors, device, latestSensors }: DeviceHealt
           <ShieldCheck size={16} />
           <span>REAL HARDWARE CONNECTED: Live telemetry streaming from ESP32 Node (`esp32-demo-01`).</span>
         </div>
-      ) : (
+      ) : isSimulation ? (
         <div style={{ padding: "10px 14px", borderRadius: "8px", background: "#FFFBEB", border: "1px solid #FCD34D", color: "#B45309", fontSize: "0.78rem", fontWeight: 700, marginBottom: "14px", display: "flex", alignItems: "center", gap: "8px" }}>
           <AlertTriangle size={16} />
           <span>SIMULATION MODE: Sandbox test data (`simulate_device.py`).</span>
+        </div>
+      ) : (
+        <div style={{ padding: "10px 14px", borderRadius: "8px", background: "#F8FAFC", border: "1px solid #CBD5E1", color: "#475569", fontSize: "0.78rem", fontWeight: 700, marginBottom: "14px" }}>
+          No telemetry received from this device yet.
         </div>
       )}
 
@@ -74,7 +82,7 @@ export function DeviceHealthCard({ sensors, device, latestSensors }: DeviceHealt
       <div style={{ marginTop: "14px", paddingTop: "10px", borderTop: "1px solid #F1F5F9", fontSize: "0.72rem", color: "#64748B", display: "flex", justifyContent: "space-between" }}>
         <span>ESP32 Firmware Pipeline: ✓ Ready</span>
         <span style={{ color: isReal ? "#059669" : "#D97706", fontWeight: 700 }}>
-          {isReal ? "Physical Hardware: ✅ Verified & Active" : "Physical Hardware: ℹ Simulation Active"}
+          {isReal ? "Physical Hardware: ✅ Verified & Active" : isSimulation ? "Physical Hardware: ℹ Simulation Active" : "Physical Hardware: Awaiting Data"}
         </span>
       </div>
     </div>

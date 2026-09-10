@@ -111,6 +111,7 @@ class ReadingIn(BaseModel):
     device_id: str
     field_id: str | None = None
     timestamp: str | None = None
+    source: str | None = None
     soil_moisture: float | None = None
     temperature: float | None = None
     humidity: float | None = None
@@ -849,7 +850,7 @@ def ingest(body: ReadingIn, db: Session = Depends(get_db), x_device_token: str |
         temperature=body.temperature,
         humidity=body.humidity,
         battery=body.battery,
-        source="REAL_SENSOR",
+        source=body.source if body.source in ("REAL_SENSOR", "SIMULATION") else "REAL_SENSOR",
         health_status=status,
         health_reasons=reasons,
     )
@@ -857,7 +858,7 @@ def ingest(body: ReadingIn, db: Session = Depends(get_db), x_device_token: str |
     if status in ("OFFLINE", "INVALID", "WARNING"):
         _emit_alert(db, device.field_id, "SENSOR_STALE" if status == "WARNING" else "ABNORMAL_SENSOR_READING", "WARNING", f"Sensor health {status}: {reasons}", "REAL_SENSOR")
     db.commit()
-    return {"id": row.id, "health_status": status, "health_reasons": reasons, "source": "REAL_SENSOR"}
+    return {"id": row.id, "health_status": status, "health_reasons": reasons, "source": row.source}
 
 
 @router.get("/fields/{field_id}/sensors")

@@ -4,11 +4,12 @@ import { SourceBadge } from "./SourceBadge";
 
 interface IrrigationCardProps {
   decision: any;
+  device?: any;
   onWhyClick: () => void;
   onConfirmClick: () => void;
 }
 
-export function IrrigationCard({ decision, onWhyClick, onConfirmClick }: IrrigationCardProps) {
+export function IrrigationCard({ decision, device, onWhyClick, onConfirmClick }: IrrigationCardProps) {
   if (!decision) {
     return (
       <div style={{ background: "white", padding: "24px", borderRadius: "16px", border: "1px solid #E2E8F0" }}>
@@ -20,6 +21,7 @@ export function IrrigationCard({ decision, onWhyClick, onConfirmClick }: Irrigat
   const rec = decision.recommendation || {};
   const needed = rec.action === "IRRIGATE";
   const status = decision.execution_status || "DECISION_READY";
+  const deviceOnline = Boolean(device?.online);
 
   return (
     <div style={{ background: "white", padding: "24px", borderRadius: "16px", border: "1px solid #E2E8F0", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)" }}>
@@ -76,13 +78,13 @@ export function IrrigationCard({ decision, onWhyClick, onConfirmClick }: Irrigat
       </div>
 
       {/* HARDWARE TRUTHFULNESS STATUS BANNER */}
-      <div style={{ padding: "12px 16px", borderRadius: "10px", background: "#ECFDF5", border: "1px solid #A7F3D0", marginBottom: "20px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#047857", fontWeight: 800, fontSize: "0.82rem" }}>
-          <CheckCircle2 size={16} />
-          <span>HARDWARE STATUS: PHYSICAL ACTUATOR VERIFIED & ONLINE</span>
+      <div style={{ padding: "12px 16px", borderRadius: "10px", background: deviceOnline ? "#ECFDF5" : "#FFFBEB", border: `1px solid ${deviceOnline ? "#A7F3D0" : "#FCD34D"}`, marginBottom: "20px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", color: deviceOnline ? "#047857" : "#B45309", fontWeight: 800, fontSize: "0.82rem" }}>
+          {deviceOnline ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
+          <span>{deviceOnline ? "HARDWARE STATUS: PHYSICAL ACTUATOR VERIFIED & ONLINE" : "HARDWARE STATUS: PHYSICAL ACTUATOR OFFLINE"}</span>
         </div>
-        <div style={{ fontSize: "0.75rem", color: "#065F46", marginTop: "4px", lineHeight: "1.4" }}>
-          ESP32 Hardware Node (GPIO 26 Relay & Submersible Motor Pump) connected and verified via Wi-Fi API.
+        <div style={{ fontSize: "0.75rem", color: deviceOnline ? "#065F46" : "#92400E", marginTop: "4px", lineHeight: "1.4" }}>
+          {deviceOnline ? "ESP32 Hardware Node (GPIO 26 Relay & Submersible Motor Pump) connected and verified via Wi-Fi API." : "ESP32 Hardware Node is not sending telemetry. Connect it before running irrigation."}
         </div>
       </div>
 
@@ -109,7 +111,7 @@ export function IrrigationCard({ decision, onWhyClick, onConfirmClick }: Irrigat
           <span>Why This Decision?</span>
         </button>
 
-        {needed && (
+        {needed && deviceOnline && (
           <button
             onClick={onConfirmClick}
             style={{
