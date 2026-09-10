@@ -15,8 +15,9 @@ import { DeviceHealthCard } from "./components/DeviceHealthCard";
 import { HistoryView } from "./components/HistoryView";
 import { EngineerStatusView } from "./components/EngineerStatusView";
 import { FieldCameraCard } from "./components/FieldCameraCard";
+import { MarketView } from "./components/MarketView";
 
-import { Sprout, Droplets, CloudSun, Radio, ShieldAlert, CheckCircle2, Lock, ArrowRight } from "lucide-react";
+import { Sprout, Droplets, CloudSun, Radio, ShieldAlert, CheckCircle2, Lock, ArrowRight, TrendingUp } from "lucide-react";
 import "./styles.css";
 
 export default function App() {
@@ -512,6 +513,11 @@ export default function App() {
                 onOpenConfirm={() => setShowConfirm(true)}
               />
             </div>
+          )}
+
+          {/* MARKET INTELLIGENCE TAB */}
+          {tab === "market" && field && (
+            <MarketView field={field} />
           )}
 
           {/* FIELD CAMERA TAB */}

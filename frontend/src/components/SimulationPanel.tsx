@@ -14,7 +14,10 @@ export function SimulationPanel({ field, currentDecision, onRunSimulation, simRe
 
   const dec = simResult?.decision;
   const action = dec?.action || "NO_DATA";
-  const liters = dec?.estimated_water_litres ?? dec?.litres_estimated ?? 0;
+  const estimatedLitres = dec?.estimated_water_litres;
+  const liters = typeof estimatedLitres === "object" && estimatedLitres !== null
+    ? (estimatedLitres.value ?? 0)
+    : (estimatedLitres ?? dec?.litres_estimated ?? 0);
   const durSec = dec?.estimated_duration_seconds ?? dec?.duration_seconds ?? 0;
   const durMins = Math.round(durSec / 60);
 

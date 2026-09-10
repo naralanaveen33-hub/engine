@@ -1,5 +1,5 @@
 import React from "react";
-import { LayoutDashboard, Sprout, Droplets, Camera, MessageSquare, History, Play, SlidersHorizontal } from "lucide-react";
+import { LayoutDashboard, Sprout, Droplets, TrendingUp, Camera, MessageSquare, History, Play, SlidersHorizontal } from "lucide-react";
 
 interface SidebarProps {
   activeTab: string;
@@ -12,6 +12,7 @@ export function Sidebar({ activeTab, onTabChange, userRole }: SidebarProps) {
     { id: "home", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
     { id: "crop", label: "Crop Intelligence", icon: <Sprout size={18} /> },
     { id: "water", label: "Irrigation Engine", icon: <Droplets size={18} /> },
+    { id: "market", label: "Market Intelligence", icon: <TrendingUp size={18} /> },
     { id: "camera", label: "Field Camera", icon: <Camera size={18} /> },
     { id: "ask", label: "Ask AquaCrop", icon: <MessageSquare size={18} /> },
     { id: "history", label: "History Timeline", icon: <History size={18} /> },

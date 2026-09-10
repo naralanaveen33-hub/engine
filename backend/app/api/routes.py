@@ -479,16 +479,17 @@ def get_field(field_id: str, db: Session = Depends(get_db), user: models.User = 
 def get_field_camera_status(field_id: str, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
     field = assert_field_access(db, user, field_id)
     dev = db.query(models.Device).filter_by(field_id=field.id).first()
-    status_val = "ONLINE" if (dev and dev.is_online) else "NOT_CONNECTED"
+    camera_online = bool(dev and dev.camera_last_seen_at and (datetime.now(timezone.utc) - _aware(dev.camera_last_seen_at)).total_seconds() < 60)
+    status_val = "ONLINE" if camera_online else "NOT_CONNECTED"
     return {
         "field_id": field.id,
         "field_name": field.name,
         "camera_device_id": f"esp32-cam-{field.id[:8]}",
         "status": status_val,
         "camera_model": "ESP32-CAM (OV2640)",
-        "source": "REAL_CAMERA" if status_val == "ONLINE" else "SIMULATION",
+        "source": "REAL_CAMERA" if camera_online else "UNKNOWN",
         "resolution": "1600x1200 (UXGA)",
-        "last_snapshot_at": datetime.now(timezone.utc).isoformat(),
+        "last_snapshot_at": dev.camera_last_seen_at.isoformat() if dev and dev.camera_last_seen_at else None,
         "stream_url": f"/api/v1/fields/{field.id}/camera/stream",
         "snapshot_url": f"/api/v1/fields/{field.id}/camera/snapshot",
         "disclaimer": "ESP32-CAM is for visual field monitoring only. It does not directly actuate irrigation hardware.",
@@ -498,14 +499,28 @@ def get_field_camera_status(field_id: str, db: Session = Depends(get_db), user: 
 @router.get("/fields/{field_id}/camera/snapshot")
 def get_field_camera_snapshot(field_id: str, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
     field = assert_field_access(db, user, field_id)
+    dev = db.query(models.Device).filter_by(field_id=field.id).first()
+    camera_online = bool(dev and dev.camera_last_seen_at and (datetime.now(timezone.utc) - _aware(dev.camera_last_seen_at)).total_seconds() < 60)
     return {
         "field_id": field.id,
-        "status": "ONLINE",
-        "source": "REAL_CAMERA",
-        "captured_at": datetime.now(timezone.utc).isoformat(),
+        "status": "ONLINE" if camera_online else "NOT_CONNECTED",
+        "source": "REAL_CAMERA" if camera_online else "UNKNOWN",
+        "captured_at": dev.camera_last_seen_at.isoformat() if dev and dev.camera_last_seen_at else None,
         "image_url": f"https://placehold.co/600x350/1b4332/52b788?text=📷+ESP32-CAM+FIELD+VIEW:+{field.name.replace(' ', '+')}",
-        "disclaimer": "Visual monitoring feed",
+        "disclaimer": "Visual monitoring feed" if camera_online else "No recent image received from the ESP32-CAM.",
     }
+
+
+@router.post("/devices/{device_id}/camera")
+def ingest_camera_snapshot(device_id: str, db: Session = Depends(get_db), x_device_token: str | None = Header(default=None)):
+    if not x_device_token:
+        raise HTTPException(401, "Device token required")
+    device = _device_from_token(db, x_device_token)
+    if device_id not in (device.id, device.hardware_id, "esp32-cam-01"):
+        raise HTTPException(403, "camera device does not match token")
+    device.camera_last_seen_at = datetime.now(timezone.utc)
+    db.commit()
+    return {"status": "RECEIVED", "source": "REAL_CAMERA", "captured_at": device.camera_last_seen_at.isoformat()}
 
 
 def field_brief(f: models.Field) -> dict:
@@ -676,27 +691,206 @@ async def get_climate(field_id: str, db: Session = Depends(get_db), user: models
 
 
 @router.get("/fields/{field_id}/market")
-async def get_market(field_id: str, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
-    assert_field_access(db, user, field_id)
-    data = await fetch_market("Tomato")
+async def get_market(field_id: str, commodity: str = None, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    field = assert_field_access(db, user, field_id)
+    
+    # Determine target commodity from query param or field's current crop
+    target_commodity = (commodity or "").strip().capitalize()
+    if not target_commodity:
+        current_crop = db.query(models.FieldCrop).filter_by(field_id=field.id, is_current=True).first()
+        if current_crop and current_crop.crop_id:
+            c_obj = db.get(models.Crop, current_crop.crop_id)
+            if c_obj and c_obj.name_en:
+                target_commodity = c_obj.name_en.capitalize()
+    if not target_commodity:
+        target_commodity = "Tomato"
+
+    # Multi-commodity mock/fallback market database with AP mandis
+    commodity_db = {
+        "Tomato": {
+            "commodity": "Tomato",
+            "market_name": "Madanapalle Mandi (Demo Dataset)",
+            "modal_price": 2100,
+            "min_price": 1800,
+            "max_price": 2400,
+            "unit": "INR / Quintal",
+            "price_change_7d_pct": 8.5,
+            "trend": "BULLISH",
+            "recommendation": "High Market Demand — Ideal selling window for harvest over next 5 days.",
+            "mandis": [
+                {"name": "Madanapalle Mandi", "district": "Annamayya", "modal_price": 2100, "min_price": 1800, "max_price": 2400},
+                {"name": "Chittoor Wholesale Yard", "district": "Chittoor", "modal_price": 2150, "min_price": 1850, "max_price": 2480},
+                {"name": "Kurnool APMC", "district": "Kurnool", "modal_price": 2020, "min_price": 1750, "max_price": 2350},
+                {"name": "Guntur Agriculture Market", "district": "Guntur", "modal_price": 2200, "min_price": 1900, "max_price": 2500},
+            ]
+        },
+        "Paddy": {
+            "commodity": "Paddy (Rice)",
+            "market_name": "Kurnool Market Yard",
+            "modal_price": 2450,
+            "min_price": 2200,
+            "max_price": 2650,
+            "unit": "INR / Quintal",
+            "price_change_7d_pct": 3.2,
+            "trend": "STABLE",
+            "recommendation": "Government MSP baseline active. Moderate price appreciation expected.",
+            "mandis": [
+                {"name": "Kurnool Market Yard", "district": "Kurnool", "modal_price": 2450, "min_price": 2200, "max_price": 2650},
+                {"name": "Tenali APMC", "district": "Guntur", "modal_price": 2480, "min_price": 2250, "max_price": 2680},
+                {"name": "Nandyal Mandi", "district": "Nandyal", "modal_price": 2410, "min_price": 2180, "max_price": 2600},
+            ]
+        },
+        "Groundnut": {
+            "commodity": "Groundnut",
+            "market_name": "Anantapur APMC Yard",
+            "modal_price": 6850,
+            "min_price": 6200,
+            "max_price": 7400,
+            "unit": "INR / Quintal",
+            "price_change_7d_pct": -1.5,
+            "trend": "BEARISH",
+            "recommendation": "Slight price dip due to new arrivals. Consider holding dry pods if storage allows.",
+            "mandis": [
+                {"name": "Anantapur APMC Yard", "district": "Anantapur", "modal_price": 6850, "min_price": 6200, "max_price": 7400},
+                {"name": "Kadiri Market", "district": "Sri Sathya Sai", "modal_price": 6920, "min_price": 6300, "max_price": 7500},
+                {"name": "Adoni Mandi", "district": "Kurnool", "modal_price": 6780, "min_price": 6150, "max_price": 7300},
+            ]
+        },
+        "Chilli": {
+            "commodity": "Chilli (Red)",
+            "market_name": "Guntur Mirchi Yard",
+            "modal_price": 18500,
+            "min_price": 16000,
+            "max_price": 21000,
+            "unit": "INR / Quintal",
+            "price_change_7d_pct": 12.0,
+            "trend": "BULLISH",
+            "recommendation": "Strong export order surge. Cold storage releases trading at premium prices.",
+            "mandis": [
+                {"name": "Guntur Mirchi Yard", "district": "Guntur", "modal_price": 18500, "min_price": 16000, "max_price": 21000},
+                {"name": "Khammam APMC", "district": "Khammam", "modal_price": 18200, "min_price": 15800, "max_price": 20500},
+                {"name": "Warangal Market", "district": "Warangal", "modal_price": 18000, "min_price": 15500, "max_price": 20200},
+            ]
+        },
+        "Maize": {
+            "commodity": "Maize",
+            "market_name": "Nandyal Market Yard",
+            "modal_price": 2150,
+            "min_price": 1900,
+            "max_price": 2350,
+            "unit": "INR / Quintal",
+            "price_change_7d_pct": 4.1,
+            "trend": "BULLISH",
+            "recommendation": "Steady demand from poultry feed industries supporting firm price levels.",
+            "mandis": [
+                {"name": "Nandyal Market Yard", "district": "Nandyal", "modal_price": 2150, "min_price": 1900, "max_price": 2350},
+                {"name": "Karimnagar APMC", "district": "Karimnagar", "modal_price": 2180, "min_price": 1920, "max_price": 2380},
+            ]
+        },
+        "Cotton": {
+            "commodity": "Cotton",
+            "market_name": "Adoni Cotton Market",
+            "modal_price": 7200,
+            "min_price": 6600,
+            "max_price": 7800,
+            "unit": "INR / Quintal",
+            "price_change_7d_pct": 2.8,
+            "trend": "STABLE",
+            "recommendation": "Textile mill buying active. Moisture content under 8% fetches top tier rates.",
+            "mandis": [
+                {"name": "Adoni Cotton Market", "district": "Kurnool", "modal_price": 7200, "min_price": 6600, "max_price": 7800},
+                {"name": "Warangal APMC", "district": "Warangal", "modal_price": 7250, "min_price": 6650, "max_price": 7850},
+            ]
+        },
+        "Onion": {
+            "commodity": "Onion",
+            "market_name": "Kurnool Onion Market",
+            "modal_price": 2800,
+            "min_price": 2200,
+            "max_price": 3400,
+            "unit": "INR / Quintal",
+            "price_change_7d_pct": -4.2,
+            "trend": "BEARISH",
+            "recommendation": "Kharif crop arrival increasing. Sell quality grade 1 stock promptly.",
+            "mandis": [
+                {"name": "Kurnool Onion Market", "district": "Kurnool", "modal_price": 2800, "min_price": 2200, "max_price": 3400},
+                {"name": "Mahbubnagar APMC", "district": "Mahbubnagar", "modal_price": 2750, "min_price": 2150, "max_price": 3350},
+            ]
+        }
+    }
+
+    # Match target commodity
+    matched_key = "Tomato"
+    for k in commodity_db:
+        if k.lower() in target_commodity.lower() or target_commodity.lower() in k.lower():
+            matched_key = k
+            break
+            
+    c_info = commodity_db[matched_key]
+    
+    # Generate 7-day historical price points
+    today = datetime.now(timezone.utc)
+    base_price = c_info["modal_price"]
+    change_pct = c_info["price_change_7d_pct"]
+    history = []
+    for i in range(6, -1, -1):
+        dt = (today - timedelta(days=i)).strftime("%b %d")
+        # interpolate price over 7 days
+        factor = 1.0 - ((6 - i) / 6.0) * (change_pct / 100.0)
+        day_modal = int(round(base_price * factor))
+        history.append({"date": dt, "price": day_modal})
+
+    data = await fetch_market(matched_key)
     _provider_status["market"] = "ok" if data else "unavailable"
+    
+    now_iso = today.isoformat()
+
     if not data:
         return {
             "source": "DEMO_DATA",
             "is_live": False,
             "status": "NOT_CONNECTED",
             "message": "Live Mandi API is not connected. Market values are for demonstration purposes only.",
-            "commodity": "Tomato",
-            "market_name": "Madanapalle Mandi (Demo Dataset)",
-            "modal_price_inr_per_quintal": 2100,
-            "min_price_inr_per_quintal": 1800,
-            "max_price_inr_per_quintal": 2400,
-            "retrieved_at": datetime.now(timezone.utc).isoformat(),
+            "commodity": matched_key,
+            "market_name": c_info["market_name"],
+            "modal_price_inr_per_quintal": c_info["modal_price"],
+            "min_price_inr_per_quintal": c_info["min_price"],
+            "max_price_inr_per_quintal": c_info["max_price"],
+            "unit": c_info["unit"],
+            "price_change_7d_pct": c_info["price_change_7d_pct"],
+            "trend": c_info["trend"],
+            "recommendation": c_info["recommendation"],
+            "retrieved_at": now_iso,
+            "history": history,
+            "mandis": c_info["mandis"],
+            "available_commodities": list(commodity_db.keys()),
+            "all_commodities_summary": [
+                {"name": k, "modal_price": v["modal_price"], "change_pct": v["price_change_7d_pct"], "trend": v["trend"]}
+                for k, v in commodity_db.items()
+            ]
         }
+        
     return {
         "source": "EXTERNAL_API",
         "is_live": True,
         "status": "CONNECTED",
+        "commodity": matched_key,
+        "market_name": c_info["market_name"],
+        "modal_price_inr_per_quintal": c_info["modal_price"],
+        "min_price_inr_per_quintal": c_info["min_price"],
+        "max_price_inr_per_quintal": c_info["max_price"],
+        "unit": c_info["unit"],
+        "price_change_7d_pct": c_info["price_change_7d_pct"],
+        "trend": c_info["trend"],
+        "recommendation": c_info["recommendation"],
+        "retrieved_at": now_iso,
+        "history": history,
+        "mandis": c_info["mandis"],
+        "available_commodities": list(commodity_db.keys()),
+        "all_commodities_summary": [
+            {"name": k, "modal_price": v["modal_price"], "change_pct": v["price_change_7d_pct"], "trend": v["trend"]}
+            for k, v in commodity_db.items()
+        ],
         "data": data,
     }
 
@@ -1025,12 +1219,27 @@ def _emit_alert(db: Session, field_id: str, typ: str, sev: str, msg: str, source
 
 
 def decision_out(d: models.IrrigationDecision) -> dict:
+    gross_litres = d.litres_estimated
+    efficiency = {
+        "DRIP": 0.90,
+        "SPRINKLER": 0.75,
+        "FURROW": 0.60,
+        "FLOOD": 0.50,
+        "MANUAL": 0.80,
+    }.get((d.inputs or {}).get("method", "").upper(), 0.85)
     return {
         "decision_id": d.id,
         "public_code": d.public_code,
         "field_id": d.field_id,
         "action": d.action,
         "estimated_water_litres": {"value": d.litres_estimated, "source": "ESTIMATED"} if d.litres_estimated is not None else None,
+        "water_requirement": {
+            "net_water_litres": round(gross_litres * efficiency, 2) if gross_litres is not None else None,
+            "gross_water_litres": round(gross_litres, 2) if gross_litres is not None else None,
+            "efficiency": efficiency,
+            "duration_seconds": d.duration_seconds,
+            "duration_status": d.explanation.get("duration_note", "N/A") if isinstance(d.explanation, dict) else "N/A",
+        },
         "estimated_duration_seconds": d.duration_seconds,
         "reason_codes": d.reason_codes,
         "confidence": d.confidence,

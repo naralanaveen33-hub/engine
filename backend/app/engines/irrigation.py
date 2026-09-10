@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from app.engines.water import duration_seconds, litres_for_depth
+from app.engines.water import METHOD_EFFICIENCY, duration_seconds, litres_for_depth
 from app.enums import IrrigationAction, SensorHealthStatus
 
 RULE_VERSION = "irrigation-engine-v1"
@@ -65,6 +65,7 @@ class IrrigationResult:
     data_quality: str
     freshness: str
     litres_estimated: float | None
+    net_water_litres: float | None
     duration_seconds: float | None
     duration_note: str
     water_source_label: str
@@ -185,7 +186,10 @@ def evaluate_irrigation(inp: IrrigationInput) -> IrrigationResult:
         if demand > 1.1:
             reasons.append("HIGH_CROP_WATER_DEMAND")
         action = IrrigationAction.IRRIGATE
-        depth = 5.0 * demand
+        base_depth = inp.et0_mm if inp.et0_mm is not None and inp.et0_mm > 0 else 5.0
+        depth = base_depth * demand
+        if inp.et0_mm is None or inp.et0_mm <= 0:
+            reasons.append("ET0_FALLBACK_DEFAULT")
         litres = None
         dur = None
         note = "AREA_UNKNOWN"
@@ -235,6 +239,7 @@ def _pack(
     action_s = action.value if hasattr(action, "value") else str(action)
     execution_status = "BLOCKED" if execute_blocked else "AUTHORIZED"
     block_reasons = [r for r in reasons if r in ("SENSOR_UNRELIABLE", "SENSOR_STALE", "WEATHER_UNAVAILABLE", "WATER_SHORTAGE")] if execute_blocked else []
+    efficiency = METHOD_EFFICIENCY.get(inp.irrigation_method.upper(), 0.85)
     explanation = {
         "what": action_s,
         "why": why,
@@ -243,6 +248,7 @@ def _pack(
         "execute_blocked": execute_blocked,
         "execution_status": execution_status,
         "execution_block_reasons": block_reasons,
+            "duration_note": duration_note,
         "disclaimer": "Thresholds are engineering defaults for the hackathon, not a scientifically validated water-balance model.",
     }
     if inp.weather_available or mode == "SIMULATION":
@@ -259,6 +265,7 @@ def _pack(
         data_quality=quality,
         freshness=freshness,
         litres_estimated=litres,
+        net_water_litres=round(litres * efficiency, 2) if litres is not None else None,
         duration_seconds=dur,
         duration_note=duration_note,
         water_source_label=water_label,

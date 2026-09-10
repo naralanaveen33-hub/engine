@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 import sys
+from sqlalchemy import inspect, text
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,6 +22,11 @@ import app.models  # noqa: F401
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     Base.metadata.create_all(bind=engine)
+    inspector = inspect(engine)
+    device_columns = {column["name"] for column in inspector.get_columns("devices")}
+    if "camera_last_seen_at" not in device_columns:
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE devices ADD COLUMN camera_last_seen_at DATETIME"))
     db = SessionLocal()
     try:
         seed_if_empty(db)

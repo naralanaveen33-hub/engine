@@ -18,7 +18,8 @@ export function IrrigationCard({ decision, device, onWhyClick, onConfirmClick }:
     );
   }
 
-  const rec = decision.recommendation || {};
+  const rec = decision.recommendation || decision;
+  const water = decision.water_requirement || {};
   const needed = rec.action === "IRRIGATE";
   const status = decision.execution_status || "DECISION_READY";
   const deviceOnline = Boolean(device?.online);
@@ -49,21 +50,21 @@ export function IrrigationCard({ decision, device, onWhyClick, onConfirmClick }:
         <div>
           <div style={{ fontSize: "0.72rem", color: "#64748B", fontWeight: 700 }}>NET WATER VOLUME</div>
           <div style={{ fontSize: "1.2rem", fontWeight: 800, color: "#0F172A", marginTop: "2px" }}>
-            {rec.net_water_liters ? `${rec.net_water_liters.toLocaleString()} L` : "0 L"}
+            {water.net_water_litres != null ? `${water.net_water_litres.toLocaleString()} L` : "0 L"}
           </div>
         </div>
 
         <div>
           <div style={{ fontSize: "0.72rem", color: "#64748B", fontWeight: 700 }}>GROSS WATER VOLUME</div>
           <div style={{ fontSize: "1.2rem", fontWeight: 800, color: "#0F172A", marginTop: "2px" }}>
-            {rec.gross_water_liters ? `${rec.gross_water_liters.toLocaleString()} L` : "0 L"}
+            {water.gross_water_litres != null ? `${water.gross_water_litres.toLocaleString()} L` : "0 L"}
           </div>
         </div>
 
         <div>
           <div style={{ fontSize: "0.72rem", color: "#64748B", fontWeight: 700 }}>EXECUTABLE DURATION</div>
           <div style={{ fontSize: "1.2rem", fontWeight: 800, color: rec.duration_capped ? "#D97706" : "#0F172A", marginTop: "2px" }}>
-            {rec.safe_duration_seconds ? `${Math.round(rec.safe_duration_seconds / 60)} mins` : "0 mins"}
+            {decision.estimated_duration_seconds ? `${Math.round(decision.estimated_duration_seconds / 60)} mins` : "0 mins"}
           </div>
           {rec.duration_capped && (
             <span style={{ fontSize: "0.68rem", color: "#D97706", fontWeight: 700, display: "block" }}>
@@ -74,7 +75,7 @@ export function IrrigationCard({ decision, device, onWhyClick, onConfirmClick }:
       </div>
 
       <div style={{ fontSize: "0.85rem", color: "#334155", background: "#F1F5F9", padding: "12px 16px", borderRadius: "8px", marginBottom: "16px" }}>
-        <strong>Reasoning:</strong> {rec.reason || "Soil water depletion is within safe bounds for current crop stage."}
+        <strong>Reasoning:</strong> {rec.reason || decision.explanation?.why?.join(" ") || "Soil water depletion is within safe bounds for current crop stage."}
       </div>
 
       {/* HARDWARE TRUTHFULNESS STATUS BANNER */}

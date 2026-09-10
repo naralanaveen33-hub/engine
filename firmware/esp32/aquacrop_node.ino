@@ -131,7 +131,10 @@ int readSoilMoisture() {
 
 // Send Sensor Telemetry to AquaCrop Backend API
 void sendTelemetry() {
-  if (WiFi.status() != WL_CONNECTED) return;
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.printf("[API TELEMETRY] Skipped: Wi-Fi disconnected, status=%d\n", WiFi.status());
+    return;
+  }
 
   float temp = dht.readTemperature();
   float humidity = dht.readHumidity();
@@ -165,9 +168,17 @@ void sendTelemetry() {
 
   String jsonBody;
   serializeJson(doc, jsonBody);
+  Serial.printf("[API TELEMETRY] Target: %s\n", endpoint.c_str());
+  Serial.printf("[API TELEMETRY] Wi-Fi RSSI: %d dBm\n", WiFi.RSSI());
+  Serial.println("[API TELEMETRY] Payload: " + jsonBody);
 
   int httpCode = http.POST(jsonBody);
   Serial.printf("[API TELEMETRY] POST /sensor/readings -> HTTP %d\n", httpCode);
+  if (httpCode > 0) {
+    Serial.println("[API TELEMETRY] Response: " + http.getString());
+  } else {
+    Serial.println("[API TELEMETRY] Error: " + http.errorToString(httpCode));
+  }
 
   http.end();
 }

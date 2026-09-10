@@ -186,6 +186,7 @@ class Device(Base):
     type: Mapped[str] = mapped_column(String, default="ESP32")
     token_hash: Mapped[str] = mapped_column(String)
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    camera_last_seen_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     actuator_ok: Mapped[bool] = mapped_column(Boolean, default=True)
     pump_flow_lpm: Mapped[float | None] = mapped_column(Float, nullable=True)
 

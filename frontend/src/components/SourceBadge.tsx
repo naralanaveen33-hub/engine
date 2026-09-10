@@ -17,6 +17,11 @@ export function SourceBadge({ source }: SourceBadgeProps) {
     bg = "#ECFDF5";
     color = "#047857";
     border = "#6EE7B7";
+  } else if (s === "REAL_CAMERA") {
+    label = "REAL CAMERA";
+    bg = "#EFF6FF";
+    color = "#1D4ED8";
+    border = "#93C5FD";
   } else if (s === "WEATHER_API" || s === "OPEN_METEO") {
     label = "WEATHER API";
     bg = "#EFF6FF";

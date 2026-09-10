@@ -40,6 +40,7 @@ const char* WIFI_SSID    = "Hi";
 const char* WIFI_PASS    = "123456789";
 const char* API_HOST     = "http://10.227.62.41:8000";
 const char* HARDWARE_ID  = "esp32-cam-01";
+const char* DEVICE_TOKEN = "esp32-demo-token";
 // Function Prototypes for C++ Compliance
 void uploadFieldSnapshot();
 

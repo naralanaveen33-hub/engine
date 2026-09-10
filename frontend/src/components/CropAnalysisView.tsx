@@ -41,13 +41,13 @@ export function CropAnalysisView({ analysis, onRun }: CropAnalysisViewProps) {
                   <SourceBadge source="MODEL_OUTPUT" />
                 </div>
                 <div style={{ fontSize: "0.78rem", color: "#64748B", marginTop: "4px" }}>
-                  Positives: {rec.pos?.join(" · ") || "High suitability"}
+                  Positives: {(rec.pos || rec.positive_factors)?.join(" · ") || "High suitability"}
                 </div>
               </div>
 
               <div style={{ textAlign: "right" }}>
                 <div style={{ fontSize: "1.4rem", fontWeight: 900, color: idx === 0 ? "#059669" : "#2563EB" }}>
-                  {rec.score}%
+                  {rec.score ?? rec.suitability_score ?? "--"}%
                 </div>
                 <span style={{ fontSize: "0.7rem", color: "#64748B", fontWeight: 700 }}>Suitability Score</span>
               </div>
