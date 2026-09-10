@@ -54,6 +54,9 @@ class IrrigationInput:
 @dataclass
 class IrrigationResult:
     action: str
+    decision: str
+    execution_status: str
+    execution_block_reasons: list[str]
     reason_codes: list[str]
     confidence: float
     data_quality: str
@@ -211,12 +214,16 @@ def _pack(
     duration_note: str = "N/A",
 ) -> IrrigationResult:
     action_s = action.value if hasattr(action, "value") else str(action)
+    execution_status = "BLOCKED" if execute_blocked else "AUTHORIZED"
+    block_reasons = [r for r in reasons if r in ("SENSOR_UNRELIABLE", "SENSOR_STALE", "WEATHER_UNAVAILABLE", "WATER_SHORTAGE")] if execute_blocked else []
     explanation = {
         "what": action_s,
         "why": why,
         "data_used": [f"soil_moisture={inp.moisture_pct} [{inp.moisture_source}]", f"health={inp.moisture_health}"],
         "could_change": could,
         "execute_blocked": execute_blocked,
+        "execution_status": execution_status,
+        "execution_block_reasons": block_reasons,
         "disclaimer": "Thresholds are engineering defaults for the hackathon, not a scientifically validated water-balance model.",
     }
     if inp.weather_available or mode == "SIMULATION":
@@ -225,6 +232,9 @@ def _pack(
         explanation["data_used"].append("weather=UNAVAILABLE")
     return IrrigationResult(
         action=action_s,
+        decision=action_s,
+        execution_status=execution_status,
+        execution_block_reasons=block_reasons,
         reason_codes=reasons,
         confidence=max(0.05, min(0.99, confidence)),
         data_quality=quality,

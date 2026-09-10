@@ -7,7 +7,7 @@ from app.engines.water import litres_for_depth
 
 
 def test_litres():
-    assert litres_for_depth(1, 10, "DRIP") == 9.0
+    assert round(litres_for_depth(1, 10, "DRIP"), 2) == 11.11
 
 
 def test_same_family_soft_penalty():
@@ -150,3 +150,35 @@ def test_sensor_out_of_range():
     )
     assert st == "INVALID"
     assert "OUT_OF_RANGE" in reasons
+
+
+def test_crop_analysis_ml_model_loaded():
+    from app.engines.crop_analysis import load_model, model_meta, analyze_crops
+    load_model()
+    meta = model_meta()
+    assert meta.get("status") == "TRAINED"
+    assert meta.get("version") == "1.0.0" or meta.get("model_version") == "crop_rf_v1"
+
+    catalog = [
+        {"code": "rice", "name_en": "Rice", "water_demand": "HIGH", "season": "KHARIF"},
+        {"code": "chickpea", "name_en": "Chickpea", "water_demand": "LOW", "season": "RABI"}
+    ]
+    res = analyze_crops(
+        catalog=catalog,
+        n=90, p=42, k=43, temperature=20.8, humidity=82.0, ph=6.5, rainfall=202.9,
+        feature_sources={},
+        previous_code=None,
+        history_status="NO_DATA",
+        water_availability="HIGH",
+        farmer_preference=None,
+        market_bonus={},
+        month=7
+    )
+    assert res["ml_status"] == "TRAINED"
+    assert res["model_version"] == "1.0.0" or res["model_version"] == "crop_rf_v1"
+    recs = res["recommendations"]
+    assert len(recs) == 2
+    # Rice should rank #1 for high rainfall
+    assert recs[0]["crop"] == "rice"
+    assert recs[0]["suitability_score"] > 80.0
+

@@ -49,3 +49,4 @@ Hackathon 2026. Read `00_REPOSITORY_ANALYSIS.md` first.
 | 42 | [Data lineage](42_DATA_LINEAGE.md) |
 | 43 | [Model card](43_MODEL_CARD.md) |
 | 44 | [API provider verification](44_API_PROVIDER_VERIFICATION.md) |
+| 45 | [ESP32-CAM visual monitoring](45_ESP32_CAM_INTEGRATION.md) |

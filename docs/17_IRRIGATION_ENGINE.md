@@ -1,66 +1,41 @@
-# 17 — Irrigation Decision Engine
+# 17 — Irrigation Decision Engine & Safety Authorization
 
 ## Purpose
+Deterministic, explainable operational recommendation for a field, separating **operational decision** from **execution authorization**.
 
-Deterministic, explainable operational recommendation for a field.
+## Decision vs. Execution Authorization Model
 
-## Scope
+```text
+Field Telemetry + Weather + Crop + Soil
+                 ↓
+      Irrigation Decision Engine
+                 ↓
+       [ Decision Recommendations ]
+    IRRIGATE | DELAY | DO_NOT_IRRIGATE
+                 ↓
+          Safety Engine
+                 ↓
+     [ Execution Authorization ]
+       AUTHORIZED | BLOCKED
+                 ↓
+       ESP32 Actuator Node
+```
 
-Actions IRRIGATE, DELAY, DO_NOT_IRRIGATE. Estimates water and duration. Simulation overlay supported.
+### 1. Decision Actions (`decision`)
+- `IRRIGATE`: Soil moisture below stage threshold and no heavy rainfall forecast.
+- `DELAY`: Soil moisture low but high rain forecast ($\ge 70\%$ prob or $\ge 10\text{ mm}$ expected rain), or moisture adequate.
+- `DO_NOT_IRRIGATE`: Soil moisture in optimal band or recent irrigation within 6h.
+- `NOT_EVALUABLE`: Inputs missing or invalid.
 
-## Architecture
+### 2. Execution Status (`execution_status`)
+- `AUTHORIZED`: All safety checks pass, sensor is `FRESH`, weather data is available, and calculated runtime is within safety caps.
+- `BLOCKED`: Pump command is strictly blocked due to safety block reasons (`SENSOR_UNRELIABLE`, `SENSOR_STALE`, `WEATHER_UNAVAILABLE`, `WATER_SHORTAGE`, `DURATION_EXCEEDS_SAFETY_LIMIT`).
 
-`irrigation-engine-v1` pure function + persistence wrapper.
-
-Priority for **current** moisture: valid fresh REAL_SENSOR > farmer observation > estimate > simulation. Forecast still combined.
-
-## Inputs
-
-Soil moisture + health, T, H, precip probability / amount, crop, stage, soil texture (optional), area, method, water availability, last irrigation, ET0 optional, simulation scenario optional.
-
-## Outputs
-
-Action, estimated_water_litres (`ESTIMATED`), estimated_duration, schedule hint, priority, reason_codes, confidence 0–1, data_quality, data_freshness, sources, rule_version, decision public_code e.g. `IRR-2026-00001`.
-
-## Data Flow
-
-Evaluate → store decision (expires e.g. 2h) → explain → confirm → execute (real mode only).
-
-## Dependencies
-
-Water calc (18), health (08), weather (10), safety (27).
-
-## Failure Cases
-
-Stale sensor: no execute; may still recommend with low confidence. Weather unavailable: no rain-override; reason `WEATHER_UNAVAILABLE`. Water_availability=NONE: DO_NOT_IRRIGATE `WATER_SHORTAGE`.
-
-## Security
-
-Evaluate is read-ish (creates decision row). Execute separate.
-
-## MVP Implementation
-
-Moisture bands by crop profile (e.g. tomato flowering low threshold 35% — **profile assumption**, not validated FAO).
-
-Rules (order):
-
-1. INVALID/OFFLINE moisture → DELAY, `SENSOR_UNRELIABLE`, confidence ≤ 0.3, execute blocked.  
-2. Recent irrigation within 6h → DO_NOT_IRRIGATE `RECENT_IRRIGATION`.  
-3. Precip probability next 24h ≥ 70% or precip ≥ 10 mm → DELAY if moisture not critically low; DO_NOT_IRRIGATE if moisture adequate. `RAIN_FORECAST`.  
-4. Moisture below low threshold and rain low → IRRIGATE `LOW_SOIL_MOISTURE`.  
-5. Moisture in band → DELAY `MOISTURE_ADEQUATE`.  
-6. Moisture high → DO_NOT_IRRIGATE `HIGH_SOIL_MOISTURE`.
-
-Heat wave simulation raises demand; heavy rain simulation forces DELAY/DO_NOT.
-
-## Production Extension
-
-ET-based soil water balance with calibrated sensors.
-
-## Testing
-
-Low moisture + heavy rain tomorrow → DELAY. Low + dry → IRRIGATE. Stale → block execute.
-
-## Limitations
-
-Thresholds are engineering defaults for demo, not scientifically validated for all soils.
+## Response Schema Fields
+- `decision`: string
+- `execution_status`: `"AUTHORIZED"` | `"BLOCKED"`
+- `execution_block_reasons`: list of strings
+- `confidence`: float ($0.0 - 1.0$)
+- `litres_estimated`: float (Gross water requirement)
+- `duration_seconds`: float (Safe executable runtime)
+- `duration_note`: `"EXACT_CALCULATED"` | `"DURATION_CAPPED_SAFETY"` | `"FLOW_UNCALIBRATED"`

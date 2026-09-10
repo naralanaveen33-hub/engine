@@ -15,14 +15,38 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def normalize_phone_number(phone: str) -> str:
+    cleaned = "".join(ch for ch in phone if ch.isdigit() or ch == "+")
+    if not cleaned.startswith("+"):
+        if cleaned.startswith("91") and len(cleaned) == 12:
+            cleaned = "+" + cleaned
+        elif len(cleaned) == 10:
+            cleaned = "+91" + cleaned
+    return cleaned
+
+
 class User(Base):
     __tablename__ = "users"
     id: Mapped[str] = mapped_column(String, primary_key=True, default=uid)
-    email: Mapped[str] = mapped_column(String, unique=True, index=True)
-    password_hash: Mapped[str] = mapped_column(String)
+    email: Mapped[str | None] = mapped_column(String, unique=True, index=True, nullable=True)
+    phone_number: Mapped[str | None] = mapped_column(String, unique=True, index=True, nullable=True)
+    password_hash: Mapped[str] = mapped_column(String, default="")
     role: Mapped[str] = mapped_column(String, default="farmer")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     farmer: Mapped["Farmer | None"] = relationship(back_populates="user")
+
+
+class OtpChallenge(Base):
+    __tablename__ = "otp_challenges"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=uid)
+    phone_number: Mapped[str] = mapped_column(String, index=True)
+    otp_code: Mapped[str] = mapped_column(String)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
+    max_attempts: Mapped[int] = mapped_column(Integer, default=5)
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    status: Mapped[str] = mapped_column(String, default="PENDING")
 
 
 class Farmer(Base):

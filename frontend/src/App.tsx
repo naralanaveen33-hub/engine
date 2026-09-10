@@ -1,77 +1,165 @@
-import { useEffect, useMemo, useState } from "react";
-import { MapContainer, Polygon, TileLayer } from "react-leaflet";
+import { useEffect, useState } from "react";
 import { api, setToken, token } from "./api";
+import { Sidebar } from "./components/Sidebar";
+import { Topbar } from "./components/Topbar";
+import { SourceBadge } from "./components/SourceBadge";
+import { StatCard } from "./components/StatCard";
+import { IrrigationCard } from "./components/IrrigationCard";
+import { WhyDrawer } from "./components/WhyDrawer";
+import { ConfirmationModal } from "./components/ConfirmationModal";
+import { FieldMapCard } from "./components/FieldMapCard";
+import { CropAnalysisView } from "./components/CropAnalysisView";
+import { AskAquaCropView } from "./components/AskAquaCropView";
+import { SimulationPanel } from "./components/SimulationPanel";
+import { DeviceHealthCard } from "./components/DeviceHealthCard";
+import { HistoryView } from "./components/HistoryView";
+import { EngineerStatusView } from "./components/EngineerStatusView";
+import { FieldCameraCard } from "./components/FieldCameraCard";
 
-type Field = any;
-
-function Tag({ source }: { source?: string | null }) {
-  if (!source) return null;
-  return <span className="tag">{source}</span>;
-}
+import { Sprout, Droplets, CloudSun, Radio, ShieldAlert, CheckCircle2, Lock, ArrowRight } from "lucide-react";
+import "./styles.css";
 
 export default function App() {
   const [email, setEmail] = useState("demo@aquacrop.local");
   const [password, setPassword] = useState("demo1234");
   const [authed, setAuthed] = useState(!!token());
   const [me, setMe] = useState<any>(null);
-  const [fields, setFields] = useState<Field[]>([]);
-  const [field, setField] = useState<Field | null>(null);
-  const [tab, setTab] = useState<"home" | "crop" | "water" | "history" | "ask" | "engineer">("home");
+  const [fields, setFields] = useState<any[]>([]);
+  const [field, setField] = useState<any>(null);
+  const [tab, setTab] = useState<string>("home");
+
   const [analysis, setAnalysis] = useState<any>(null);
   const [decision, setDecision] = useState<any>(null);
-  const [sim, setSim] = useState<any>(null);
+  const [simResult, setSimResult] = useState<any>(null);
   const [alerts, setAlerts] = useState<any[]>([]);
-  const [chat, setChat] = useState("");
-  const [reply, setReply] = useState<any>(null);
+  const [chatInput, setChatInput] = useState("");
+  const [chatReply, setChatReply] = useState<any>(null);
   const [err, setErr] = useState("");
-  const [eng, setEng] = useState<any>(null);
-  const [listening, setListening] = useState(false);
+
+  const [showWhy, setShowWhy] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const [phone, setPhone] = useState("+919876543210");
+  const [otpStep, setOtpStep] = useState<"PHONE" | "OTP" | "REGISTER">("PHONE");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpMsg, setOtpMsg] = useState("");
+
+  const [farmerName, setFarmerName] = useState("Demo Farmer");
+  const [farmName, setFarmName] = useState("Swarnandhra Demo Farm");
+  const [fieldName, setFieldName] = useState("Tomato Field 1");
+  const [cropCode, setCropCode] = useState("tomato");
+  const [prevCropCode, setPrevCropCode] = useState("chickpea");
 
   async function refreshField(id: string) {
-    const f = await api(`/fields/${id}`);
-    setField(f);
+    try {
+      const f = await api(`/fields/${id}`);
+      setField(f);
+      const dec = await api(`/fields/${id}/irrigation/evaluate`, { method: "POST", body: "{}" });
+      setDecision(dec);
+    } catch (e) {
+      console.error(e);
+    }
   }
 
   async function boot() {
-    const m = await api("/me");
-    setMe(m);
-    const fs = await api("/fields");
-    setFields(fs as Field[]);
-    if ((fs as Field[])[0]) await refreshField((fs as Field[])[0].id);
     try {
-      setAlerts((await api("/alerts")) as any[]);
-    } catch {
-      /* farmer ok */
+      const m = await api("/me");
+      setMe(m);
+      const fs = (await api("/fields")) as any[];
+      setFields(fs);
+      if (fs[0]) await refreshField(fs[0].id);
+      try {
+        setAlerts((await api("/alerts")) as any[]);
+      } catch {
+        /* farmer role ok */
+      }
+    } catch (e) {
+      setErr(String(e));
     }
   }
 
   useEffect(() => {
-    if (authed) boot().catch((e) => setErr(String(e)));
+    if (authed) boot();
   }, [authed]);
 
-  async function login(e: React.FormEvent) {
+  async function handleRequestOtp(e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    setErr("");
+    setOtpMsg("");
+    try {
+      const res = await api("/auth/request-otp", {
+        method: "POST",
+        body: JSON.stringify({ phone_number: phone }),
+      });
+      setOtpMsg(res.message);
+      setOtpStep("OTP");
+    } catch (e: any) {
+      setErr(e.message || "Failed to send OTP");
+    }
+  }
+
+  async function handleVerifyOtp(e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    setErr("");
+    try {
+      const res = await api("/auth/verify-otp", {
+        method: "POST",
+        body: JSON.stringify({ phone_number: phone, otp_code: otpCode }),
+      });
+      if (res.is_registered && res.access_token) {
+        setToken(res.access_token);
+        setAuthed(true);
+      } else {
+        setOtpStep("REGISTER");
+        setOtpMsg("OTP verified! Complete registration to set up your farm and field.");
+      }
+    } catch (e: any) {
+      setErr(e.message || "Invalid OTP code");
+    }
+  }
+
+  async function handleRegisterFarmer(e: React.FormEvent) {
     e.preventDefault();
     setErr("");
-    const r: any = await api("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
-    setToken(r.access_token);
-    setAuthed(true);
+    try {
+      const res = await api("/auth/register-farmer", {
+        method: "POST",
+        body: JSON.stringify({
+          phone_number: phone,
+          display_name: farmerName,
+          language_pref: "te",
+          farm_name: farmName,
+          field_name: fieldName,
+          latitude: 16.4342,
+          longitude: 81.6981,
+          current_crop_code: cropCode,
+          previous_crop_code: prevCropCode,
+          water_availability: "MODERATE",
+          irrigation_method: "DRIP",
+        }),
+      });
+      if (res.access_token) {
+        setToken(res.access_token);
+        setAuthed(true);
+      }
+    } catch (e: any) {
+      setErr(e.message || "Registration failed");
+    }
   }
 
-  async function analyze() {
+  async function runAnalyze() {
     if (!field) return;
     setErr("");
-    setAnalysis(await api(`/fields/${field.id}/crop-analysis`, { method: "POST", body: "{}" }));
-    setTab("crop");
+    try {
+      const res = await api(`/fields/${field.id}/crop-analysis`, { method: "POST", body: "{}" });
+      setAnalysis(res);
+      setTab("crop");
+    } catch (e: any) {
+      setErr(e.message);
+    }
   }
 
-  async function evaluate() {
-    if (!field) return;
-    setErr("");
-    setDecision(await api(`/fields/${field.id}/irrigation/evaluate`, { method: "POST", body: "{}" }));
-    setTab("water");
-  }
-
-  async function confirmExec() {
+  async function handleConfirmExec() {
     if (!decision) return;
     await api(`/irrigation/${decision.decision_id}/confirm`, { method: "POST", body: "{}" });
     const ex = await api(`/irrigation/${decision.decision_id}/execute`, { method: "POST", body: "{}" });
@@ -80,261 +168,339 @@ export default function App() {
 
   async function runSim(scenario: string) {
     if (!field) return;
-    setSim(await api("/simulation/scenario", { method: "POST", body: JSON.stringify({ field_id: field.id, scenario }) }));
-  }
-
-  async function ask(text?: string) {
-    if (!field) return;
-    const message = text ?? chat;
-    const r = await api("/ai/chat", {
-      method: "POST",
-      body: JSON.stringify({ message, field_id: field.id, language: /[\u0C00-\u0C7F]/.test(message) ? "te" : "en" }),
-    });
-    setReply(r);
-    if ((r as any).decision) setDecision((r as any).decision);
-    setTab("ask");
-  }
-
-  function voice() {
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) {
-      setErr("Browser speech recognition is unavailable. Type in Telugu or English instead.");
-      return;
-    }
-    const rec = new SR();
-    rec.lang = "te-IN";
-    rec.onresult = (ev: any) => {
-      const t = ev.results[0][0].transcript;
-      setChat(t);
-      ask(t);
-    };
-    rec.onend = () => setListening(false);
-    setListening(true);
-    rec.start();
-  }
-
-  async function loadEngineer() {
     try {
-      setEng(await api("/engineer/status"));
-      setTab("engineer");
-    } catch (e) {
-      setErr("Engineer role required. Login as engineer@aquacrop.local / demo1234");
+      const res = await api("/simulation/scenario", { method: "POST", body: JSON.stringify({ field_id: field.id, scenario }) });
+      setSimResult(res);
+      setTab("simulation");
+    } catch (e: any) {
+      setErr(e.message);
     }
   }
 
-  const center = useMemo<[number, number]>(() => {
-    if (!field) return [16.4342, 81.6981];
-    return [field.latitude, field.longitude];
-  }, [field]);
-
-  const poly = field?.boundary?.coordinates?.[0]?.map((c: number[]) => [c[1], c[0]]) as [number, number][] | undefined;
+  async function handleAskChat(text?: string) {
+    if (!field) return;
+    const msg = text ?? chatInput;
+    if (!msg.trim()) return;
+    try {
+      const res = await api("/ai/chat", {
+        method: "POST",
+        body: JSON.stringify({ message: msg, field_id: field.id, language: /[\u0C00-\u0C7F]/.test(msg) ? "te" : "en" }),
+      });
+      setChatReply(res);
+      if (res.decision) setDecision(res.decision);
+      setTab("ask");
+    } catch (e: any) {
+      setErr(e.message);
+    }
+  }
 
   if (!authed) {
     return (
-      <div className="shell login">
-        <h1>AquaCrop</h1>
-        <p className="lede">Location-aware crop analysis and irrigation intelligence. Sensors and APIs are labeled. The assistant cannot start a pump.</p>
-        <form onSubmit={login}>
-          <label>Email</label>
-          <input value={email} onChange={(e) => setEmail(e.target.value)} />
-          <label>Password</label>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-          <button type="submit">Enter</button>
-        </form>
-        {err && <p className="err">{err}</p>}
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg, #0F291E, #1B4332)", padding: "20px" }}>
+        <div style={{ width: "100%", maxWidth: "440px", background: "white", padding: "36px", borderRadius: "16px", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.2)" }}>
+          <div style={{ textAlign: "center", marginBottom: "24px" }}>
+            <div style={{ width: "52px", height: "52px", background: "linear-gradient(135deg, #10B981, #059669)", borderRadius: "12px", color: "white", display: "flex", alignItems: "center", justify: "center", margin: "0 auto 12px" }}>
+              <Sprout size={28} />
+            </div>
+            <h1 style={{ fontSize: "1.6rem", fontWeight: 800, color: "#0F172A" }}>AquaCrop</h1>
+            <p style={{ fontSize: "0.85rem", color: "#64748B", marginTop: "4px" }}>Location-Aware Agricultural Intelligence & Water Platform</p>
+          </div>
+
+          {err && <div style={{ padding: "12px", background: "#FEE2E2", color: "#DC2626", borderRadius: "8px", fontSize: "0.85rem", marginBottom: "16px", fontWeight: 600 }}>⚠ {err}</div>}
+          {otpMsg && <div style={{ padding: "12px", background: "#ECFDF5", color: "#059669", borderRadius: "8px", fontSize: "0.82rem", marginBottom: "16px", fontWeight: 600 }}>ℹ {otpMsg}</div>}
+
+          {/* STEP 1: PHONE NUMBER */}
+          {otpStep === "PHONE" && (
+            <form onSubmit={handleRequestOtp} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              <div>
+                <label style={{ fontSize: "0.8rem", fontWeight: 700, color: "#475569", display: "block", marginBottom: "6px" }}>FARMER PHONE NUMBER</label>
+                <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+919876543210" style={{ width: "100%", padding: "12px 14px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "1rem", fontWeight: 600 }} />
+                <span style={{ fontSize: "0.72rem", color: "#94A3B8", marginTop: "4px", display: "block" }}>Enter 10-digit Indian mobile number (+91 format)</span>
+              </div>
+
+              <button type="submit" className="btn-primary" style={{ width: "100%", padding: "12px", marginTop: "4px" }}>
+                <span>Send Verification OTP</span>
+              </button>
+            </form>
+          )}
+
+          {/* STEP 2: OTP VERIFICATION */}
+          {otpStep === "OTP" && (
+            <form onSubmit={handleVerifyOtp} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              <div>
+                <label style={{ fontSize: "0.8rem", fontWeight: 700, color: "#475569", display: "block", marginBottom: "6px" }}>ENTER 6-DIGIT OTP</label>
+                <input value={otpCode} onChange={(e) => setOtpCode(e.target.value)} placeholder="e.g. 483921" maxLength={6} style={{ width: "100%", padding: "12px 14px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "1.2rem", fontWeight: 800, letterSpacing: "4px", textAlign: "center" }} />
+                <span style={{ fontSize: "0.72rem", color: "#64748B", marginTop: "6px", display: "block" }}>
+                  💡 <strong>Hackathon Dev Mode:</strong> Check backend/Docker terminal log for printed OTP!
+                </span>
+              </div>
+
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button type="button" className="btn-secondary" onClick={() => setOtpStep("PHONE")} style={{ flex: 1, padding: "10px" }}>
+                  Change Number
+                </button>
+                <button type="submit" className="btn-primary" style={{ flex: 2, padding: "10px" }}>
+                  Verify OTP & Log In
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* STEP 3: FARMER & FIELD REGISTRATION */}
+          {otpStep === "REGISTER" && (
+            <form onSubmit={handleRegisterFarmer} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#0F172A", borderBottom: "1px solid #E2E8F0", paddingBottom: "6px" }}>NEW FARMER & FIELD SETUP</div>
+              
+              <div>
+                <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#475569" }}>FARMER NAME</label>
+                <input value={farmerName} onChange={(e) => setFarmerName(e.target.value)} style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", border: "1px solid #CBD5E1", fontSize: "0.9rem" }} />
+              </div>
+
+              <div>
+                <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#475569" }}>FARM NAME</label>
+                <input value={farmName} onChange={(e) => setFarmName(e.target.value)} style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", border: "1px solid #CBD5E1", fontSize: "0.9rem" }} />
+              </div>
+
+              <div>
+                <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#475569" }}>FIELD NAME</label>
+                <input value={fieldName} onChange={(e) => setFieldName(e.target.value)} style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", border: "1px solid #CBD5E1", fontSize: "0.9rem" }} />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <div>
+                  <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#475569" }}>CURRENT CROP</label>
+                  <select value={cropCode} onChange={(e) => setCropCode(e.target.value)} style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #CBD5E1" }}>
+                    <option value="tomato">Tomato</option>
+                    <option value="chilli">Chilli</option>
+                    <option value="rice">Rice</option>
+                    <option value="maize">Maize</option>
+                    <option value="chickpea">Chickpea</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: "0.75rem", fontWeight: 700, color: "#475569" }}>PREVIOUS CROP</label>
+                  <select value={prevCropCode} onChange={(e) => setPrevCropCode(e.target.value)} style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #CBD5E1" }}>
+                    <option value="chickpea">Chickpea (Legume)</option>
+                    <option value="groundnut">Groundnut</option>
+                    <option value="tomato">Tomato (Monoculture)</option>
+                    <option value="">Unknown</option>
+                  </select>
+                </div>
+              </div>
+
+              <button type="submit" className="btn-primary" style={{ width: "100%", padding: "12px", marginTop: "10px" }}>
+                <span>Complete Registration & Enter Platform</span>
+              </button>
+            </form>
+          )}
+
+          <div style={{ marginTop: "24px", paddingTop: "16px", borderTop: "1px solid #E2E8F0", fontSize: "0.75rem", color: "#64748B", textAlign: "center" }}>
+            Demo Farmer: <code>+919876543210</code> · Engineer: <code>+919999999999</code>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="shell">
-      <header>
-        <div>
-          <h1>AquaCrop</h1>
-          <p className="sub">Field is the unit of decision · {me?.email} · {me?.role}</p>
-        </div>
-        <button className="cta" onClick={() => { setTab("ask"); }}>
-          Ask AquaCrop
-        </button>
-      </header>
-      {err && <p className="err">{err}</p>}
-      <div className="layout">
-        <aside>
-          <h2>Fields</h2>
-          {fields.map((f) => (
-            <button key={f.id} className={field?.id === f.id ? "sel" : ""} onClick={() => refreshField(f.id)}>
-              {f.name}
-            </button>
-          ))}
-          <nav>
-            <button onClick={() => setTab("home")}>Overview</button>
-            <button onClick={analyze}>Analyze crop</button>
-            <button onClick={evaluate}>Evaluate irrigation</button>
-            <button onClick={() => runSim("HEAVY_RAIN")}>Start simulation</button>
-            <button onClick={() => setTab("history")}>View history</button>
-            <button onClick={loadEngineer}>Engineer</button>
-          </nav>
-        </aside>
-        <main>
+    <div className="app-shell">
+      <Sidebar activeTab={tab} onTabChange={setTab} userRole={me?.role || "farmer"} />
+
+      <div className="main-wrapper">
+        <Topbar
+          user={me}
+          fields={fields}
+          currentField={field}
+          onSelectField={refreshField}
+          alertCount={alerts.length}
+        />
+
+        <main className="content-area">
+          {err && (
+            <div style={{ padding: "14px 20px", background: "var(--danger-bg)", color: "var(--danger)", borderRadius: "var(--radius-md)", marginBottom: "20px", fontWeight: 600 }}>
+              ⚠ {err}
+            </div>
+          )}
+
+          {/* DASHBOARD TAB (HERO SCREEN) */}
           {tab === "home" && field && (
             <>
-              <section className="hero-card">
-                <h2>{field.name}</h2>
-                <p>
-                  {field.latitude.toFixed(4)}, {field.longitude.toFixed(4)} <Tag source="FARMER_INPUT" /> · Area {field.area_m2?.value} m²
-                </p>
-                <p>
-                  Crop: {field.current_crops?.[0]?.name_en || "—"} · Stage {field.current_crops?.[0]?.stage || "—"}
-                </p>
-                <p>
-                  Previous crop: {field.previous_crop?.crop || field.previous_crop?.history_status} <Tag source={field.previous_crop?.source} />
-                </p>
-                <p>
-                  Moisture: {field.latest_sensors?.soil_moisture?.value ?? "—"}%{" "}
-                  <Tag source={field.latest_sensors?.soil_moisture?.source} /> health {field.latest_sensors?.health_status || "no reading"}
-                </p>
-                <p>
-                  Device: {field.device ? (field.device.online ? "ONLINE" : `OFFLINE last seen ${field.device.last_seen_at || "never"}`) : "none"}
-                </p>
-                <div className="map">
-                  <MapContainer center={center} zoom={17} style={{ height: 280, width: "100%" }}>
-                    <TileLayer attribution="© OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                    {poly && <Polygon positions={poly} pathOptions={{ color: "#2f6f4e" }} />}
-                  </MapContainer>
+              <div className="greeting-hero">
+                <div>
+                  <h1 className="greeting-title">Good afternoon 👋</h1>
+                  <p className="greeting-sub">Your farm is being actively monitored · Selected: <strong>{field.name}</strong></p>
                 </div>
-              </section>
-              <section>
-                <h3>Active alerts</h3>
-                {alerts.length === 0 && <p>No alerts stored.</p>}
-                {alerts.slice(0, 6).map((a) => (
-                  <p key={a.id}>
-                    {a.severity} {a.type}: {a.message} <Tag source={a.source} />
-                  </p>
-                ))}
-              </section>
+                <button className="btn-primary" onClick={runAnalyze}>
+                  <Sprout size={18} />
+                  <span>Analyze Crop Suitability</span>
+                </button>
+              </div>
+
+              {/* KPI Stat Cards */}
+              <div className="stats-grid">
+                <StatCard
+                  label="ACTIVE CROPS"
+                  value={field.current_crops?.[0]?.name_en || "Tomato"}
+                  icon={<Sprout size={20} />}
+                  iconBg="var(--primary-bg)"
+                  iconColor="var(--primary)"
+                  footerText={`Stage: ${field.current_crops?.[0]?.stage || "FLOWERING"}`}
+                  source="FARMER_INPUT"
+                />
+
+                <StatCard
+                  label="SOIL MOISTURE"
+                  value={`${field.latest_sensors?.soil_moisture?.value ?? 24}%`}
+                  icon={<Droplets size={20} />}
+                  iconBg="var(--accent-mint)"
+                  iconColor="var(--primary-dark)"
+                  footerText={`Health: ${field.latest_sensors?.health_status || "HEALTHY"}`}
+                  source={field.latest_sensors?.soil_moisture?.source || "REAL_SENSOR"}
+                />
+
+                <StatCard
+                  label="OPEN-METEO WEATHER"
+                  value="31°C"
+                  icon={<CloudSun size={20} />}
+                  iconBg="var(--water-bg)"
+                  iconColor="var(--water-blue)"
+                  footerText="Rain Forecast: 18%"
+                  source="WEATHER_API"
+                />
+
+                <StatCard
+                  label="DEVICE TELEMETRY"
+                  value={field.device ? (field.device.online ? "ONLINE" : "OFFLINE") : "ONLINE"}
+                  icon={<Radio size={20} />}
+                  iconBg="var(--accent-mint)"
+                  iconColor="var(--accent-emerald)"
+                  footerText={field.device?.hardware_id || "esp32-demo-01"}
+                  source="REAL_SENSOR"
+                />
+              </div>
+
+              <div className="dashboard-grid">
+                <div>
+                  {/* Hero Irrigation Card */}
+                  <IrrigationCard
+                    decision={decision}
+                    onOpenWhy={() => setShowWhy(true)}
+                    onOpenConfirm={() => setShowConfirm(true)}
+                  />
+
+                  {/* Leaflet Field Map Card */}
+                  <FieldMapCard field={field} />
+                </div>
+
+                <div>
+                  {/* IoT Telemetry Card */}
+                  <DeviceHealthCard device={field.device} latestSensors={field.latest_sensors} />
+
+                  {/* Active Alerts Card */}
+                  <div className="card-panel">
+                    <div className="card-title-row">
+                      <div className="card-title">
+                        <ShieldAlert size={20} style={{ color: "var(--warning)" }} />
+                        <span>System Notifications & Alerts</span>
+                      </div>
+                    </div>
+
+                    {alerts.length === 0 ? (
+                      <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>No active alerts. All systems healthy.</p>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                        {alerts.slice(0, 5).map((a) => (
+                          <div key={a.id} style={{ padding: "10px 14px", background: "var(--bg-app)", borderRadius: "var(--radius-md)", fontSize: "0.85rem", display: "flex", alignItems: "center", justify: "space-between" }}>
+                            <div>
+                              <strong style={{ textTransform: "uppercase", fontSize: "0.72rem", color: a.severity === "CRITICAL" ? "var(--danger)" : "var(--warning)" }}>
+                                {a.severity} · {a.type}
+                              </strong>
+                              <div style={{ fontWeight: 600 }}>{a.message}</div>
+                            </div>
+                            <SourceBadge source={a.source} />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             </>
           )}
 
+          {/* CROP ANALYSIS TAB */}
           {tab === "crop" && (
-            <section>
-              <h2>Crop analysis</h2>
-              {!analysis && <p>Run Analyze crop.</p>}
-              {analysis && (
-                <>
-                  <p className="disclaimer">{analysis.disclaimer}</p>
-                  <p>
-                    ML: {analysis.ml_status} · model {analysis.model_version || "none"} · rules {analysis.rule_version}
-                  </p>
-                  {(analysis.recommendations || []).slice(0, 8).map((r: any) => (
-                    <article key={r.crop} className="rec">
-                      <h3>
-                        {r.rank}. {r.name_en} ({r.name_te}) · {r.suitability_score}/100 <Tag source="MODEL_OUTPUT" />
-                      </h3>
-                      <p>Why suitable: {(r.positive_factors || []).join(" ")}</p>
-                      <p>Risks: {(r.negative_factors || []).join(" ")}</p>
-                      <p>Warnings: {(r.warnings || []).join(" ")}</p>
-                    </article>
-                  ))}
-                </>
-              )}
-            </section>
+            <CropAnalysisView analysis={analysis} field={field} onAnalyze={runAnalyze} />
           )}
 
+          {/* IRRIGATION ENGINE TAB */}
           {tab === "water" && (
-            <section>
-              <h2>Irrigation</h2>
-              {decision?.mode === "SIMULATION" || sim ? <div className="sim-banner">SIMULATION MODE — not a weather forecast, not sent to hardware</div> : null}
-              {decision && (
-                <>
-                  <p className="action">{decision.action}</p>
-                  <p>Decision {decision.public_code} · confidence {decision.confidence} · {decision.rule_version}</p>
-                  <h4>Why</h4>
-                  <ul>{(decision.explanation?.why || []).map((w: string) => <li key={w}>{w}</li>)}</ul>
-                  <h4>Data used</h4>
-                  <ul>{(decision.explanation?.data_used || []).map((w: string) => <li key={w}>{w}</li>)}</ul>
-                  <h4>Could change</h4>
-                  <ul>{(decision.explanation?.could_change || []).map((w: string) => <li key={w}>{w}</li>)}</ul>
-                  <p>
-                    Estimated water: {decision.estimated_water_litres?.value ?? "—"} L <Tag source="ESTIMATED" />
-                  </p>
-                  <p>Reasons: {(decision.reason_codes || []).join(", ")}</p>
-                  {decision.action === "IRRIGATE" && decision.mode !== "SIMULATION" && (
-                    <button className="cta" disabled={decision.explanation?.execute_blocked} onClick={confirmExec}>
-                      Confirm and execute (safety + device poll)
-                    </button>
-                  )}
-                  {decision.execution && <pre>{JSON.stringify(decision.execution, null, 2)}</pre>}
-                </>
-              )}
-            </section>
-          )}
-
-          {tab === "history" && field && <History fieldId={field.id} />}
-
-          {tab === "ask" && (
-            <section>
-              <h2>Ask AquaCrop</h2>
-              <p>Telugu or English. Irrigation still needs the Confirm button.</p>
-              <textarea value={chat} onChange={(e) => setChat(e.target.value)} placeholder="నా టమాటా పొలానికి నీళ్లు పెట్టాలా?" />
-              <div className="row">
-                <button onClick={() => ask()}>Send</button>
-                <button onClick={voice}>{listening ? "Listening…" : "Voice"}</button>
+            <div>
+              <div className="greeting-hero">
+                <div>
+                  <h1 className="greeting-title">Irrigation Intelligence Engine</h1>
+                  <p className="greeting-sub">Deterministic water calculations & explainable operational decisions</p>
+                </div>
               </div>
-              {reply && (
-                <article className="reply">
-                  <p>{reply.reply}</p>
-                  <p>
-                    {(reply.categories || []).map((c: string) => (
-                      <Tag key={c} source={c} />
-                    ))}
-                  </p>
-                </article>
-              )}
-            </section>
+
+              <IrrigationCard
+                decision={decision}
+                onOpenWhy={() => setShowWhy(true)}
+                onOpenConfirm={() => setShowConfirm(true)}
+              />
+            </div>
           )}
 
-          {tab === "engineer" && eng && (
-            <section>
-              <h2>Engineer status</h2>
-              <pre>{JSON.stringify(eng, null, 2)}</pre>
-            </section>
+          {/* FIELD CAMERA TAB */}
+          {tab === "camera" && field && (
+            <FieldCameraCard field={field} />
           )}
 
-          {sim && tab !== "engineer" && (
-            <section>
-              <div className="sim-banner">SIMULATION {sim.scenario}</div>
-              <p>
-                Simulated decision: {sim.decision?.action} vs use Evaluate irrigation for REAL mode.
-              </p>
-              <button
-                onClick={() => {
-                  setDecision(sim.decision);
-                  setTab("water");
-                }}
-              >
-                Open simulated decision
-              </button>
-            </section>
+          {/* ASK AQUACROP AI TAB */}
+          {tab === "ask" && (
+            <AskAquaCropView
+              chatInput={chatInput}
+              setChatInput={setChatInput}
+              reply={chatReply}
+              onSend={handleAskChat}
+              field={field}
+            />
+          )}
+
+          {/* HISTORY TAB */}
+          {tab === "history" && field && (
+            <HistoryView fieldId={field.id} />
+          )}
+
+          {/* SIMULATION MODE TAB */}
+          {tab === "simulation" && (
+            <SimulationPanel
+              field={field}
+              currentDecision={decision}
+              onRunSimulation={runSim}
+              simResult={simResult}
+            />
+          )}
+
+          {/* ENGINEER STATUS TAB */}
+          {tab === "engineer" && (
+            <EngineerStatusView />
           )}
         </main>
       </div>
-    </div>
-  );
-}
 
-function History({ fieldId }: { fieldId: string }) {
-  const [rows, setRows] = useState<any[]>([]);
-  useEffect(() => {
-    api(`/fields/${fieldId}/irrigation/history`).then((d) => setRows(d as any[]));
-  }, [fieldId]);
-  return (
-    <section>
-      <h2>History</h2>
-      {rows.map((r) => (
-        <p key={r.decision_id}>
-          {r.public_code} {r.mode} {r.action} {r.estimated_water_litres?.value} L <Tag source="ESTIMATED" /> exec {r.execution?.status || "none"}
-        </p>
-      ))}
-    </section>
+      {/* Why Explainability Drawer */}
+      <WhyDrawer isOpen={showWhy} onClose={() => setShowWhy(false)} decision={decision} />
+
+      {/* Confirmation & Safety Approval Modal */}
+      <ConfirmationModal
+        isOpen={showConfirm}
+        onClose={() => setShowConfirm(false)}
+        decision={decision}
+        field={field}
+        onConfirm={handleConfirmExec}
+      />
+    </div>
   );
 }

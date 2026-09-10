@@ -73,8 +73,10 @@ def analyze_crops(
     ml_scores: dict[str, float] = {}
     warnings_global: list[str] = []
     if ml_ok:
-        x = np.array([[n, p, k, temperature, humidity, ph, rainfall]], dtype=float)
+        import pandas as pd
+        x = pd.DataFrame([[n, p, k, temperature, humidity, ph, rainfall]], columns=FEATURES)
         proba = _model.predict_proba(x)[0]
+
         classes = list(_model.classes_)
         for c, pr in zip(classes, proba):
             ml_scores[str(c).lower()] = float(pr) * 100.0

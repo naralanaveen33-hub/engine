@@ -16,26 +16,48 @@ db.close()
 client = TestClient(app)
 
 
-def _login(email="demo@aquacrop.local"):
-    r = client.post("/api/v1/auth/login", json={"email": email, "password": "demo1234"})
+from app import models
+
+def _login(phone="+919876543210"):
+    client.post("/api/v1/auth/request-otp", json={"phone_number": phone})
+    db_sess = SessionLocal()
+    ch = db_sess.query(models.OtpChallenge).filter_by(phone_number=models.normalize_phone_number(phone), status="PENDING").order_by(models.OtpChallenge.created_at.desc()).first()
+    otp = ch.otp_code
+    db_sess.close()
+    r = client.post("/api/v1/auth/verify-otp", json={"phone_number": phone, "otp_code": otp})
     assert r.status_code == 200, r.text
     return r.json()["access_token"]
 
 
 def test_farmer_isolation():
-    token = _login()
+    token = _login("+919876543210")
     fields = client.get("/api/v1/fields", headers={"Authorization": f"Bearer {token}"}).json()
     assert fields
     fid = fields[0]["id"]
     # second farmer
-    client.post("/api/v1/auth/register", json={"email": "b@x.com", "password": "demo1234", "display_name": "B"})
-    tok_b = client.post("/api/v1/auth/login", json={"email": "b@x.com", "password": "demo1234"}).json()["access_token"]
+    phone_b = "+919876543211"
+    client.post("/api/v1/auth/request-otp", json={"phone_number": phone_b})
+    db_sess = SessionLocal()
+    ch = db_sess.query(models.OtpChallenge).filter_by(phone_number=models.normalize_phone_number(phone_b), status="PENDING").order_by(models.OtpChallenge.created_at.desc()).first()
+    otp_b = ch.otp_code
+    db_sess.close()
+    client.post("/api/v1/auth/verify-otp", json={"phone_number": phone_b, "otp_code": otp_b})
+    reg_b = client.post(
+        "/api/v1/auth/register-farmer",
+        json={
+            "phone_number": phone_b,
+            "display_name": "Farmer B",
+            "farm_name": "Farm B",
+            "field_name": "Field B",
+        },
+    ).json()
+    tok_b = reg_b["access_token"]
     r = client.get(f"/api/v1/fields/{fid}", headers={"Authorization": f"Bearer {tok_b}"})
     assert r.status_code == 403
 
 
 def test_execute_without_confirm_fails():
-    token = _login()
+    token = _login("+919876543210")
     h = {"Authorization": f"Bearer {token}"}
     fields = client.get("/api/v1/fields", headers=h).json()
     fid = fields[0]["id"]
@@ -53,7 +75,7 @@ def test_execute_without_confirm_fails():
 
 
 def test_prompt_injection_chat_no_execute():
-    token = _login()
+    token = _login("+919876543210")
     h = {"Authorization": f"Bearer {token}"}
     fields = client.get("/api/v1/fields", headers=h).json()
     r = client.post(
@@ -65,3 +87,4 @@ def test_prompt_injection_chat_no_execute():
     assert "pump" in r.json()["reply"].lower() or "Confirm" in r.json()["reply"] or "authorization" in r.json()["reply"].lower() or "పంప్" in r.json()["reply"]
     pending = client.get("/api/v1/engineer/status", headers=h)
     assert pending.status_code == 403  # farmer cannot
+

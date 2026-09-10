@@ -54,7 +54,8 @@ FK violations rejected. Missing previous crop stored as `history_status=UNKNOWN|
 
 ### Tables (logical)
 
-- `users`(id, email unique, password_hash, role, created_at)
+- `users`(id, phone_number unique, email nullable, password_hash nullable, role, created_at)
+- `otp_challenges`(id, phone_number, otp_code, created_at, expires_at, attempt_count, max_attempts, verified_at, status)
 - `farmers`(id, user_id unique, display_name, language_pref)
 - `farms`(id, farmer_id, name, lat, lon, area_m2, water_source, irrigation_infrastructure, created_at, updated_at)
 - `fields`(id, farm_id, farmer_id, name, lat, lon, area_m2, soil_type, water_availability, irrigation_method, created_at, updated_at)

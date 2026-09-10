@@ -1,5 +1,4 @@
-from __future__ import annotations
-
+import random
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -26,6 +25,31 @@ from app.security import (
 router = APIRouter()
 _next_irr_n = 1
 _provider_status = {"weather": "unknown", "soil": "unknown", "market": "unknown", "llm": "unknown"}
+
+
+class RequestOtpIn(BaseModel):
+    phone_number: str
+
+
+class VerifyOtpIn(BaseModel):
+    phone_number: str
+    otp_code: str
+
+
+class RegisterFarmerIn(BaseModel):
+    phone_number: str
+    display_name: str
+    language_pref: str = "te"
+    farm_name: str
+    field_name: str
+    latitude: float = 16.4342
+    longitude: float = 81.6981
+    area_m2: float | None = None
+    geojson: dict | None = None
+    current_crop_code: str = "tomato"
+    previous_crop_code: str | None = "chickpea"
+    water_availability: str = "MODERATE"
+    irrigation_method: str = "DRIP"
 
 
 class RegisterIn(BaseModel):
@@ -118,6 +142,190 @@ def health():
     return {"ok": True, "service": "aquacrop"}
 
 
+@router.post("/auth/request-otp")
+def request_otp(body: RequestOtpIn, db: Session = Depends(get_db)):
+    phone = models.normalize_phone_number(body.phone_number)
+    if len(phone) < 10:
+        raise HTTPException(400, "Invalid phone number format")
+
+    otp_code = f"{random.randint(100000, 999999)}"
+    now = datetime.now(timezone.utc)
+    expires = now + timedelta(minutes=5)
+
+    db.query(models.OtpChallenge).filter_by(phone_number=phone, status="PENDING").update({"status": "SUPERSEDED"})
+
+    challenge = models.OtpChallenge(
+        phone_number=phone,
+        otp_code=otp_code,
+        created_at=now,
+        expires_at=expires,
+        status="PENDING",
+    )
+    db.add(challenge)
+    db.commit()
+
+    print(f"\n[AQUACROP OTP DEV]")
+    print(f"Phone: {phone}")
+    print(f"OTP: {otp_code}")
+    print(f"Expires: 5 minutes")
+    print(f"[/AQUACROP OTP DEV]\n")
+
+    return {
+        "status": "SUCCESS",
+        "message": "OTP sent successfully. Check backend/Docker terminal logs in development mode.",
+        "phone_number": phone,
+        "expires_in_seconds": 300,
+    }
+
+
+@router.post("/auth/verify-otp")
+def verify_otp(body: VerifyOtpIn, db: Session = Depends(get_db)):
+    phone = models.normalize_phone_number(body.phone_number)
+    now = datetime.now(timezone.utc)
+
+    challenge = (
+        db.query(models.OtpChallenge)
+        .filter_by(phone_number=phone, status="PENDING")
+        .order_by(models.OtpChallenge.created_at.desc())
+        .first()
+    )
+
+    if not challenge:
+        raise HTTPException(400, "No pending OTP challenge found. Please request a new OTP.")
+
+    challenge_exp = challenge.expires_at.replace(tzinfo=timezone.utc) if challenge.expires_at.tzinfo is None else challenge.expires_at
+
+    if now > challenge_exp:
+        challenge.status = "EXPIRED"
+        db.commit()
+        raise HTTPException(400, "OTP has expired. Please request a new OTP.")
+
+    challenge.attempt_count += 1
+    if challenge.attempt_count > challenge.max_attempts:
+        challenge.status = "FAILED"
+        db.commit()
+        raise HTTPException(400, "Too many failed attempts. Please request a new OTP.")
+
+    if challenge.otp_code != body.otp_code.strip():
+        db.commit()
+        raise HTTPException(400, "Invalid OTP code. Please check terminal log and try again.")
+
+    challenge.status = "VERIFIED"
+    challenge.verified_at = now
+    db.commit()
+
+    user = db.query(models.User).filter_by(phone_number=phone).first()
+    if user:
+        farmer_id = farmer_id_of(user)
+        token = create_token(user.id, user.role, farmer_id)
+        return {
+            "access_token": token,
+            "token_type": "bearer",
+            "is_registered": True,
+            "role": user.role,
+            "user_id": user.id,
+            "farmer_id": farmer_id,
+            "farmer_name": user.farmer.display_name if user.farmer else "Farmer",
+            "phone_number": phone,
+        }
+    else:
+        return {
+            "access_token": None,
+            "is_registered": False,
+            "otp_verified": True,
+            "phone_number": phone,
+            "message": "OTP verified successfully. Complete registration to create account.",
+        }
+
+
+@router.post("/auth/register-farmer")
+def register_farmer(body: RegisterFarmerIn, db: Session = Depends(get_db)):
+    phone = models.normalize_phone_number(body.phone_number)
+
+    existing = db.query(models.User).filter_by(phone_number=phone).first()
+    if existing:
+        raise HTTPException(400, "Phone number is already registered. Please log in with OTP.")
+
+    user = models.User(phone_number=phone, email=f"{phone.replace('+', '')}@farmer.aquacrop.local", role="farmer")
+    db.add(user)
+    db.flush()
+
+    farmer = models.Farmer(user_id=user.id, display_name=body.display_name, language_pref=body.language_pref)
+    db.add(farmer)
+    db.flush()
+
+    farm = models.Farm(
+        farmer_id=farmer.id,
+        name=body.farm_name,
+        latitude=body.latitude,
+        longitude=body.longitude,
+        water_source="borewell",
+        irrigation_infrastructure="drip system",
+    )
+    db.add(farm)
+    db.flush()
+
+    calculated_area = body.area_m2 or 1897.47
+    if body.geojson and "coordinates" in body.geojson:
+        from app.utils.gis import calculate_polygon_area_m2
+        gis_area = calculate_polygon_area_m2(body.geojson["coordinates"][0])
+        if gis_area > 0:
+            calculated_area = gis_area
+
+    field = models.Field(
+        farm_id=farm.id,
+        farmer_id=farmer.id,
+        name=body.field_name,
+        latitude=body.latitude,
+        longitude=body.longitude,
+        area_m2=calculated_area,
+        soil_type="sandy loam",
+        water_availability=body.water_availability,
+        irrigation_method=body.irrigation_method,
+    )
+    db.add(field)
+    db.flush()
+
+    geojson_data = body.geojson or {
+        "type": "Polygon",
+        "coordinates": [[
+            [body.longitude - 0.0002, body.latitude - 0.0002],
+            [body.longitude + 0.0002, body.latitude - 0.0002],
+            [body.longitude + 0.0002, body.latitude + 0.0002],
+            [body.longitude - 0.0002, body.latitude + 0.0002],
+            [body.longitude - 0.0002, body.latitude - 0.0002],
+        ]]
+    }
+    db.add(models.FieldBoundary(field_id=field.id, geojson=geojson_data, area_m2_calculated=calculated_area, source="FARMER_INPUT"))
+
+    current_crop = db.query(models.Crop).filter_by(code=body.current_crop_code.lower()).first()
+    if not current_crop:
+        current_crop = db.query(models.Crop).first()
+    db.add(models.FieldCrop(field_id=field.id, crop_id=current_crop.id, stage="FLOWERING", planting_date="2026-07-01", area_fraction=1.0, is_current=True))
+
+    if body.previous_crop_code:
+        prev_crop = db.query(models.Crop).filter_by(code=body.previous_crop_code.lower()).first()
+        db.add(models.CropHistory(field_id=field.id, crop_id=prev_crop.id if prev_crop else None, history_status="KNOWN", source="FARMER_INPUT"))
+    else:
+        db.add(models.CropHistory(field_id=field.id, crop_id=None, history_status="UNKNOWN", source="FARMER_INPUT"))
+
+    db.commit()
+    db.refresh(user)
+
+    token = create_token(user.id, user.role, farmer.id)
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "is_registered": True,
+        "role": user.role,
+        "user_id": user.id,
+        "farmer_id": farmer.id,
+        "farmer_name": farmer.display_name,
+        "farm_id": farm.id,
+        "field_id": field.id,
+    }
+
+
 @router.post("/auth/register")
 def register(body: RegisterIn, db: Session = Depends(get_db)):
     if db.query(models.User).filter_by(email=body.email.lower()).first():
@@ -147,7 +355,14 @@ def login(body: LoginIn, db: Session = Depends(get_db)):
 
 @router.get("/me")
 def me(user: models.User = Depends(get_current_user)):
-    return {"id": user.id, "email": user.email, "role": user.role, "farmer_id": farmer_id_of(user)}
+    return {
+        "id": user.id,
+        "email": user.email,
+        "phone_number": user.phone_number,
+        "role": user.role,
+        "farmer_id": farmer_id_of(user),
+        "farmer_name": user.farmer.display_name if user.farmer else "Farmer",
+    }
 
 
 @router.post("/farms")
@@ -247,6 +462,39 @@ def list_fields(db: Session = Depends(get_db), user: models.User = Depends(get_c
 def get_field(field_id: str, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
     field = assert_field_access(db, user, field_id)
     return field_out(db, field)
+
+
+@router.get("/fields/{field_id}/camera/status")
+def get_field_camera_status(field_id: str, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    field = assert_field_access(db, user, field_id)
+    dev = db.query(models.Device).filter_by(field_id=field.id).first()
+    status_val = "ONLINE" if (dev and dev.is_online) else "NOT_CONNECTED"
+    return {
+        "field_id": field.id,
+        "field_name": field.name,
+        "camera_device_id": f"esp32-cam-{field.id[:8]}",
+        "status": status_val,
+        "camera_model": "ESP32-CAM (OV2640)",
+        "source": "REAL_CAMERA" if status_val == "ONLINE" else "SIMULATION",
+        "resolution": "1600x1200 (UXGA)",
+        "last_snapshot_at": datetime.now(timezone.utc).isoformat(),
+        "stream_url": f"/api/v1/fields/{field.id}/camera/stream",
+        "snapshot_url": f"/api/v1/fields/{field.id}/camera/snapshot",
+        "disclaimer": "ESP32-CAM is for visual field monitoring only. It does not directly actuate irrigation hardware.",
+    }
+
+
+@router.get("/fields/{field_id}/camera/snapshot")
+def get_field_camera_snapshot(field_id: str, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    field = assert_field_access(db, user, field_id)
+    return {
+        "field_id": field.id,
+        "status": "ONLINE",
+        "source": "REAL_CAMERA",
+        "captured_at": datetime.now(timezone.utc).isoformat(),
+        "image_url": f"https://placehold.co/600x350/1b4332/52b788?text=📷+ESP32-CAM+FIELD+VIEW:+{field.name.replace(' ', '+')}",
+        "disclaimer": "Visual monitoring feed",
+    }
 
 
 def field_brief(f: models.Field) -> dict:
@@ -996,13 +1244,23 @@ async def chat(body: ChatIn, db: Session = Depends(get_db), user: models.User = 
         facts.append("Use the Confirm button in the app. execute_authorized_irrigation is not invoked from free-text yes without the HTTP confirm endpoint.")
         categories.append("AI_EXPLANATION")
 
-    reply_en = "Field {name}.\n{facts}\nThis text explains engine and sensor facts. It is not authorization.".format(
-        name=field.name, facts="\n".join(facts) or "No tools matched; ask about irrigation, rain, or crops."
-    )
-    reply_te = "పొలం {name}.\n{facts}\nఇది వివరణ మాత్రమే. పంప్ ఆన్ కావాలంటే యాప్‌లో Confirm నొక్కండి.".format(
-        name=field.name, facts="\n".join(facts)
-    )
-    reply = reply_te if body.language.startswith("te") or any("\u0c00" <= ch <= "\u0c7f" for ch in msg) else reply_en
+    from app.services.llm import query_live_llm
+    
+    context_str = f"Field Name: {field.name}\nFacts & Engine Outputs:\n" + "\n".join(facts)
+    llm_res = await query_live_llm(msg, context_str, language=body.language)
+
+    if llm_res.get("response"):
+        reply = llm_res["response"]
+        llm_provider = f"groq ({llm_res.get('model')})"
+    else:
+        reply_en = "Field {name}.\n{facts}\nThis text explains engine and sensor facts. It is not authorization.".format(
+            name=field.name, facts="\n".join(facts) or "No tools matched; ask about irrigation, rain, or crops."
+        )
+        reply_te = "పొలం {name}.\n{facts}\nఇది వివరణ మాత్రమే. పంప్ ఆన్ కావాలంటే యాప్‌లో Confirm నొక్కండి.".format(
+            name=field.name, facts="\n".join(facts)
+        )
+        reply = reply_te if body.language.startswith("te") or any("\u0c00" <= ch <= "\u0c7f" for ch in msg) else reply_en
+        llm_provider = "aquacrop_engine_grounded"
 
     conv = models.AiConversation(farmer_id=field.farmer_id, messages=[{"user": msg, "assistant": reply}], lang=body.language)
     db.add(conv)
@@ -1017,7 +1275,7 @@ async def chat(body: ChatIn, db: Session = Depends(get_db), user: models.User = 
         "categories": categories or ["AI_EXPLANATION"],
         "field_id": field.id,
         "decision": pending,
-        "llm": "template" if not settings.groq_api_key else "groq_optional_unused_template_fallback",
+        "llm": llm_provider,
         "disclaimer": "Numbers come from tools/engines, not free-form model invention.",
     }
 

@@ -1,8 +1,17 @@
-from enum import StrEnum
+try:
+    from enum import StrEnum
+except ImportError:
+    from enum import Enum
+
+    class StrEnum(str, Enum):
+        def __str__(self) -> str:
+            return str(self.value)
+
 
 
 class DataSource(StrEnum):
     REAL_SENSOR = "REAL_SENSOR"
+    REAL_CAMERA = "REAL_CAMERA"
     WEATHER_API = "WEATHER_API"
     EXTERNAL_API = "EXTERNAL_API"
     FARMER_INPUT = "FARMER_INPUT"

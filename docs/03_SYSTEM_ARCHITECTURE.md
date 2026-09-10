@@ -1,76 +1,60 @@
 # 03 — System Architecture
 
 ## Purpose
-
-Describe runtime components, trust boundaries, and how deterministic engines relate to the LLM.
+Describe runtime components, trust boundaries, deterministic engines, and ESP32-CAM visual monitoring architecture.
 
 ## Scope
+AquaCrop Monolith: FastAPI backend API, React SPA frontend, SQLite database, N ESP32 sensor/actuator nodes, and isolated ESP32-CAM visual field monitoring nodes.
 
-Hackathon monolith: one API process, one SPA, one SQLite file, N ESP32 devices.
+## Master System Architecture
 
-## Architecture
+```text
+                               AQUACROP PLATFORM
+                                       │
+                    ┌──────────────────┴──────────────────┐
+                    ↓                                     ↓
+             React Web Dashboard                  Voice Assistant UI
+                    │                                     │
+                    └──────────────────┬──────────────────┘
+                                       ↓
+                             FastAPI BACKEND API
+                                       │
+       ┌───────────────────────────────┼───────────────────────────────┐
+       ↓                               ↓                               ↓
+ Field/Farm Management            Crop Intelligence              Weather & Soil
+ (GIS Geodesic Polygon)          (Random Forest ML + Rules)      (Open-Meteo REST)
+       │                               │                               │
+       └───────────────────────────────┼───────────────────────────────┘
+                                       ↓
+                           Irrigation Decision Engine
+                                       ↓
+                            Safety Engine (120m Cap)
+                                       ↓
+                            Execution Authorization
+                                       ↓
+                              ESP32 Telemetry Node
+                                       ↓
+                             Pump & Relay Actuator
 
+
+─────────────────────────────────────────────────────────────────────────────
+                             VISUAL MONITORING
+─────────────────────────────────────────────────────────────────────────────
+
+                              ESP32-CAM Node
+                                   ↓
+                         Camera HTTP Stream / Snapshot
+                                   ↓
+                       FastAPI Backend Camera API
+                                   ↓
+                       React Web Application UI
+                                   ↓
+                           Field Visual Monitoring
 ```
-[Farmer browser]
-  Dashboard | Map | Crop analysis | Irrigation | Voice
-        | HTTP JSON + JWT
-[FastAPI]
-  routers → services → domain engines → repositories
-        | httpx
-[Open-Meteo] [optional SoilGrids] [optional Groq] [optional data.gov.in]
-        | SQLAlchemy
-[SQLite]
-        | HTTP poll + ingest
-[ESP32] -- sensors; driver --> LED/relay/pump (low voltage)
-```
 
-**Trust boundary:** browser and ESP32 are untrusted. API authorizes every read/write. LLM is inside the API trust zone for *network* but **untrusted for authorization and agronomy math**.
+> 🚨 **CRITICAL SAFETY MANDATE:** The ESP32-CAM is strictly an observation device. It has **no pump actuators, relay control, or physical irrigation outputs**. It MUST NEVER directly control the irrigation pump.
 
-In-process “events” are Python calls (`AlertService.emit`) — no message broker.
-
-## Inputs
-
-HTTP from UI/device; provider JSON; local ML joblib artifact.
-
-## Outputs
-
-JSON APIs, decision traces, GPIO commands (via poll).
-
-## Data Flow
-
-1. Field selected → lat/lon.  
-2. WeatherProvider.fetch(lat, lon) → store with source `WEATHER_API`.  
-3. SoilService.merge(farmer test, optional remote).  
-4. CropAnalysisEngine.rank(field).  
-5. Sensor ingest → SensorHealthService.  
-6. IrrigationEngine.evaluate(field, mode=REAL|SIMULATION).  
-7. On confirm: SafetyService + CommandService.  
-8. Device polls pending command.
-
-## Dependencies
-
-Docs 05–07, 14, 17, 22, 27, 32, 44.
-
-## Failure Cases
-
-Provider timeouts (5–8s), SQLite lock (single writer), device unreachable (`OFFLINE`).
-
-## Security
-
-Separate user JWT and `X-Device-Token`. CORS limited to frontend origin. No LLM-to-GPIO path.
-
-## MVP Implementation
-
-Package: `backend/app` with `api/`, `services/`, `engines/`, `providers/`, `models/`, `schemas/`. Frontend `frontend/`. Firmware `firmware/esp32/`.
-
-## Production Extension
-
-Split workers, Postgres, MQTT with mutual TLS, object storage for CAM.
-
-## Testing
-
-Contract tests for provider adapters; engine unit tests do not call network.
-
-## Limitations
-
-Single-node; not HA. Poll interval (e.g. 3s) limits actuation latency.
+## Trust Boundaries
+- **Browser and Hardware Nodes:** Untrusted endpoints. The API authorizes every read/write using JWTs and `X-Device-Token`.
+- **LLM / Copilot:** Untrusted for agronomy math, water volume calculations, or hardware commands.
+- **Safety Engine:** Enforces max execution caps (120 min / 7,200s safety limit) and blocks actuation if sensor data is `OFFLINE`, `STALE`, or `INVALID`.

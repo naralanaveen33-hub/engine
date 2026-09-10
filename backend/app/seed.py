@@ -61,8 +61,8 @@ def seed_if_empty(db: Session) -> None:
         return
 
     demo_token = "esp32-demo-token"
-    farmer_user = models.User(email="demo@aquacrop.local", password_hash=hash_password(settings.demo_password), role="farmer")
-    eng = models.User(email="engineer@aquacrop.local", password_hash=hash_password(settings.demo_password), role="engineer")
+    farmer_user = models.User(email="demo@aquacrop.local", phone_number="+919876543210", password_hash=hash_password(settings.demo_password), role="farmer")
+    eng = models.User(email="engineer@aquacrop.local", phone_number="+919999999999", password_hash=hash_password(settings.demo_password), role="engineer")
     db.add_all([farmer_user, eng])
     db.flush()
     farmer = models.Farmer(user_id=farmer_user.id, display_name="Demo Farmer", language_pref="te")
@@ -85,7 +85,7 @@ def seed_if_empty(db: Session) -> None:
         name="Tomato Field 1",
         latitude=16.4342,
         longitude=81.6981,
-        area_m2=400,
+        area_m2=1897.47,
         soil_type="sandy loam",
         water_availability="MODERATE",
         irrigation_method="DRIP",
@@ -105,7 +105,7 @@ def seed_if_empty(db: Session) -> None:
                     [81.6979, 16.4340],
                 ]],
             },
-            area_m2_calculated=400,
+            area_m2_calculated=1897.47,
             source="FARMER_INPUT",
         )
     )

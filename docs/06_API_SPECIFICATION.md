@@ -39,7 +39,9 @@ Every field-scoped route loads field and asserts `field.farmer_id == current.far
 ## MVP Implementation
 
 ```
-POST /auth/register
+POST /auth/request-otp (phone_number -> 6-digit OTP in terminal log)
+POST /auth/verify-otp (phone_number, otp_code -> JWT token or is_registered: false)
+POST /auth/register-farmer (phone_number, display_name, farm_name, field_name -> farmer + farm + field + boundary + JWT)
 POST /auth/login
 GET  /me
 
