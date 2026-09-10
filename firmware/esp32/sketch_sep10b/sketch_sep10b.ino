@@ -1,4 +1,7 @@
-/*
+void setup() {
+  // put your setup code here, to run once:
+
+}/*
   ===================================================================================
   AquaCrop ESP32 Smart Agricultural Node Firmware
   Hardware: ESP32 DevKit V1
@@ -32,23 +35,16 @@ const bool RELAY_OFF = LOW;    // Set to HIGH if using Active-LOW Relay module
 // ===================================================================================
 // NETWORK & AQUACROP API CONFIGURATION
 // ===================================================================================
-const char* WIFI_SSID     = "Hi";                       // Your Wi-Fi SSID
-const char* WIFI_PASS     = "123456789";                   // Your Wi-Fi Password
-const char* API_HOST      = "http://10.227.62.41:8000";   // Laptop IP Address (10.227.62.41)
-const char* HARDWARE_ID   = "esp32-demo-01";            // Unique Device Hardware ID
-const char* DEVICE_TOKEN  = "esp32-demo-token";         // Device Token for X-Device-Token Header
+const char* WIFI_SSID     = "Hi";         // Replace with your WiFi SSID
+const char* WIFI_PASS     = "123456789";     // Replace with your WiFi Password
+const char* API_HOST      = "http://10.227.62.41:8000"; // Laptop IP Address (10.227.62.41)
+const char* HARDWARE_ID   = "esp32-demo-01";          // Unique Device Hardware ID
+const char* DEVICE_TOKEN  = "esp32-demo-token";       // Device Token for X-Device-Token Header
 
-const unsigned long TELEMETRY_INTERVAL_MS = 5000;       // Transmit telemetry every 5 seconds
+const unsigned long TELEMETRY_INTERVAL_MS = 5000;     // Transmit telemetry every 5 seconds
 unsigned long lastTelemetryTime = 0;
 
 DHT dht(DHTPIN, DHTTYPE);
-
-// Function Prototypes for C++ Compliance
-void connectWiFi();
-int readSoilMoisture();
-void sendTelemetry();
-void pollCommands();
-void acknowledgeCommand(const char* commandId);
 
 // ===================================================================================
 // SETUP
@@ -150,12 +146,7 @@ void sendTelemetry() {
   http.addHeader("Content-Type", "application/json");
   http.addHeader("X-Device-Token", DEVICE_TOKEN);
 
-#if ARDUINOJSON_VERSION_MAJOR >= 7
-  JsonDocument doc;
-#else
   StaticJsonDocument<256> doc;
-#endif
-
   doc["device_id"] = HARDWARE_ID;
   doc["soil_moisture"] = moisture;
   doc["temperature"] = temp;
@@ -186,16 +177,11 @@ void pollCommands() {
     String response = http.getString();
     Serial.println("[API COMMANDS] Response: " + response);
 
-#if ARDUINOJSON_VERSION_MAJOR >= 7
-    JsonDocument doc;
-#else
     StaticJsonDocument<512> doc;
-#endif
-
     DeserializationError error = deserializeJson(doc, response);
     if (!error && doc.containsKey("commands")) {
       JsonArray commands = doc["commands"].as<JsonArray>();
-      for (JsonVariant cmd : commands) {
+      for (JsonObject cmd : commands) {
         const char* cmdId = cmd["id"];
         int durationMs = cmd["duration_ms"] | 5000;
 
@@ -223,7 +209,7 @@ void pollCommands() {
 // Send Command Execution Acknowledgment back to Backend
 void acknowledgeCommand(const char* commandId) {
   HTTPClient http;
-  String endpoint = String(API_HOST) + "/api/v1/devices/" + HARDWARE_ID + "/commands/" + String(commandId) + "/ack";
+  String endpoint = String(API_HOST) + "/api/v1/devices/" + HARDWARE_ID + "/commands/" + commandId + "/ack";
   http.begin(endpoint);
   http.addHeader("Content-Type", "application/json");
   http.addHeader("X-Device-Token", DEVICE_TOKEN);
@@ -231,4 +217,9 @@ void acknowledgeCommand(const char* commandId) {
   int httpCode = http.POST("{}");
   Serial.printf("[API ACK] Command %s -> HTTP %d ACK\n", commandId, httpCode);
   http.end();
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+
 }
