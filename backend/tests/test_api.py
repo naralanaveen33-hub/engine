@@ -88,3 +88,45 @@ def test_prompt_injection_chat_no_execute():
     pending = client.get("/api/v1/engineer/status", headers=h)
     assert pending.status_code == 403  # farmer cannot
 
+
+def test_market_data_truthfulness():
+    token = _login("+919876543210")
+    h = {"Authorization": f"Bearer {token}"}
+    fields = client.get("/api/v1/fields", headers=h).json()
+    fid = fields[0]["id"]
+    r = client.get(f"/api/v1/fields/{fid}/market", headers=h)
+    assert r.status_code == 200
+    data = r.json()
+    assert data["source"] == "DEMO_DATA"
+    assert data["is_live"] is False
+    assert data["status"] == "NOT_CONNECTED"
+
+
+def test_field_details_area_acres():
+    token = _login("+919876543210")
+    h = {"Authorization": f"Bearer {token}"}
+    fields = client.get("/api/v1/fields", headers=h).json()
+    fid = fields[0]["id"]
+    r = client.get(f"/api/v1/fields/{fid}", headers=h)
+    assert r.status_code == 200
+    data = r.json()
+    assert "area_m2" in data
+    assert "area_acres" in data
+    assert data["area_acres"] > 0
+
+
+def test_ai_chat_telugu():
+    token = _login("+919876543210")
+    h = {"Authorization": f"Bearer {token}"}
+    fields = client.get("/api/v1/fields", headers=h).json()
+    r = client.post(
+        "/api/v1/ai/chat",
+        headers=h,
+        json={"message": "నా పొలంలో ఇప్పుడు నీరు పెట్టాలా?", "field_id": fields[0]["id"], "language": "te"},
+    )
+    assert r.status_code == 200
+    res = r.json()
+    assert "reply" in res
+    assert len(res["reply"]) > 0
+
+

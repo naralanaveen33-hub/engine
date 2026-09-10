@@ -182,3 +182,102 @@ def test_crop_analysis_ml_model_loaded():
     assert recs[0]["crop"] == "rice"
     assert recs[0]["suitability_score"] > 80.0
 
+
+def test_simulation_scenario_heavy_rain():
+    inp = IrrigationInput(
+        moisture_pct=25,
+        moisture_source="REAL_SENSOR",
+        moisture_health="OFFLINE",
+        health_reasons=["MISSING"],
+        temperature_c=31,
+        humidity_pct=40,
+        rain_prob_24h=10,
+        precip_mm_24h=0,
+        weather_available=False,
+        crop_code="tomato",
+        stage="FLOWERING",
+        low_threshold=32,
+        high_threshold=55,
+        area_m2=400,
+        irrigation_method="DRIP",
+        water_availability="MODERATE",
+        hours_since_irrigation=48,
+        et0_mm=None,
+        flow_lpm=None,
+        max_actuator_seconds=30,
+        simulation_scenario="heavy_rain_50mm",
+    )
+    r = evaluate_irrigation(inp)
+    assert r.mode == "SIMULATION"
+    assert r.action in ("DELAY", "DO_NOT_IRRIGATE")
+    assert r.freshness == "FRESH"
+    assert r.data_quality == "OK"
+    assert "SIMULATION_HEAVY_RAIN_50MM" in r.reason_codes
+
+
+def test_simulation_scenario_drought():
+    inp = IrrigationInput(
+        moisture_pct=35,
+        moisture_source="REAL_SENSOR",
+        moisture_health="OFFLINE",
+        health_reasons=["MISSING"],
+        temperature_c=31,
+        humidity_pct=40,
+        rain_prob_24h=10,
+        precip_mm_24h=0,
+        weather_available=False,
+        crop_code="tomato",
+        stage="FLOWERING",
+        low_threshold=32,
+        high_threshold=55,
+        area_m2=400,
+        irrigation_method="DRIP",
+        water_availability="MODERATE",
+        hours_since_irrigation=48,
+        et0_mm=None,
+        flow_lpm=None,
+        max_actuator_seconds=30,
+        simulation_scenario="drought_20pct",
+    )
+    r = evaluate_irrigation(inp)
+    assert r.mode == "SIMULATION"
+    assert r.action == "IRRIGATE"
+    assert r.litres_estimated and r.litres_estimated > 0
+    assert r.freshness == "FRESH"
+    assert r.data_quality == "OK"
+    assert "SIMULATION_DROUGHT_20PCT" in r.reason_codes
+
+
+def test_simulation_scenario_heatwave():
+    inp = IrrigationInput(
+        moisture_pct=35,
+        moisture_source="REAL_SENSOR",
+        moisture_health="OFFLINE",
+        health_reasons=["MISSING"],
+        temperature_c=31,
+        humidity_pct=40,
+        rain_prob_24h=10,
+        precip_mm_24h=0,
+        weather_available=False,
+        crop_code="tomato",
+        stage="FLOWERING",
+        low_threshold=32,
+        high_threshold=55,
+        area_m2=400,
+        irrigation_method="DRIP",
+        water_availability="MODERATE",
+        hours_since_irrigation=48,
+        et0_mm=None,
+        flow_lpm=None,
+        max_actuator_seconds=30,
+        simulation_scenario="heatwave_38c",
+    )
+    r = evaluate_irrigation(inp)
+    assert r.mode == "SIMULATION"
+    assert r.action == "IRRIGATE"
+    assert r.litres_estimated and r.litres_estimated > 0
+    assert r.freshness == "FRESH"
+    assert r.data_quality == "OK"
+    assert "SIMULATION_HEATWAVE_38C" in r.reason_codes
+
+
