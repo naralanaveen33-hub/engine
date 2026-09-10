@@ -843,6 +843,20 @@ async def get_market(field_id: str, commodity: str = None, db: Session = Depends
     data = await fetch_market(matched_key)
     _provider_status["market"] = "ok" if data else "unavailable"
     
+    if data and data.get("records") and len(data["records"]) > 0:
+        rec = data["records"][0]
+        try:
+            if rec.get("modal_price"):
+                c_info["modal_price"] = float(rec["modal_price"])
+            if rec.get("min_price"):
+                c_info["min_price"] = float(rec["min_price"])
+            if rec.get("max_price"):
+                c_info["max_price"] = float(rec["max_price"])
+            if rec.get("market"):
+                c_info["market_name"] = f"{rec['market']} Mandi (Live Agmarknet)"
+        except Exception:
+            pass
+
     now_iso = today.isoformat()
 
     if not data:
