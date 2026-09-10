@@ -368,6 +368,17 @@ export default function App() {
           )}
 
           {/* DASHBOARD TAB (HERO SCREEN) */}
+          {tab === "home" && !field && (
+            <div style={{ padding: "48px 24px", background: "white", borderRadius: "16px", border: "1px solid #E2E8F0", textAlign: "center", margin: "20px 0" }}>
+              <div style={{ fontSize: "1.2rem", fontWeight: 800, color: "#0F172A", marginBottom: "8px" }}>
+                🌾 Loading Agricultural Field Intelligence...
+              </div>
+              <div style={{ fontSize: "0.88rem", color: "#64748B" }}>
+                Connecting live telemetry, Open-Meteo weather APIs, and crop models...
+              </div>
+            </div>
+          )}
+
           {tab === "home" && field && (
             <>
               <div className="greeting-hero">
